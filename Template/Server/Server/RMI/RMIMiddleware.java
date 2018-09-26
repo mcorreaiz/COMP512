@@ -16,7 +16,7 @@ import java.rmi.registry.LocateRegistry;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 
-public class RMIMiddleware extends ResourceManager 
+public class RMIMiddleware extends ResourceManager
 {
 	private static String s_serverName = "Middleware";
 	//TODO: REPLACE 'ALEX' WITH YOUR GROUP NUMBER TO COMPILE
@@ -24,16 +24,16 @@ public class RMIMiddleware extends ResourceManager
 
 	public static void main(String args[])
 	{
-		if (args.length > 3)
-		{
-			RMhost_1 = args[0];
-			RMhost_2 = args[1];
-			RMhost_3 = args[2];
-			RMhost_4 = args[3];
+		// if (args.length > 3)
+		// {
+		// 	RMhost_1 = args[0];
+		// 	RMhost_2 = args[1];
+		// 	RMhost_3 = args[2];
+		// 	RMhost_4 = args[3];
+		//
+		// }
 
-		}
-		
-			
+
 		// Create the RMI server entry
 		try {
 			// Create a new Server object
@@ -63,7 +63,7 @@ public class RMIMiddleware extends ResourceManager
 						e.printStackTrace();
 					}
 				}
-			});                                       
+			});
 			System.out.println("'" + s_serverName + "' resource manager server ready and bound to '" + s_rmiPrefix + s_serverName + "'");
 		}
 		catch (Exception e) {
