@@ -5,8 +5,8 @@ MACHINES=("cs-10" "cs-10" "cs-10" "cs-10" "cs-10" "cs-10")
 
 tmux new-session \; \
 	split-window -h \; \
-	split-window -h \; \
-	split-window -h \; \
+	split-window -v \; \
+	split-window -v \; \
 	split-window -v \; \
 	select-layout main-vertical \; \
 	select-pane -t 1 \; \

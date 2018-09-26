@@ -23,8 +23,6 @@ public class RMIResourceManager extends ResourceManager
 	//TODO: REPLACE 'ALEX' WITH YOUR GROUP NUMBER TO COMPILE
 	private static String s_rmiPrefix = "group9";
 
-	private static HashMap s_resourceManagers;
-
 	public static void main(String args[])
 	{
 		if (args.length > 0)
@@ -35,7 +33,7 @@ public class RMIResourceManager extends ResourceManager
 		if (args.length > 1) {
 			// It's CustomerRM. Initialize other RM's stubs.
 			String[] names = {"Cars", "Flights", "Rooms"};
-			s_resourceManagers = new RMHashMap();
+			s_resourceManagers = new HashMap();
 			try {
 				for (int i = 0; i < 3; i++) {
 					// Iterate over three RM's
@@ -62,12 +60,6 @@ public class RMIResourceManager extends ResourceManager
 				System.err.println((char)27 + "[31;1mServer exception: " + (char)27 + "[0mUncaught exception");
 				e.printStackTrace();
 				System.exit(1);
-			}
-			try {
-				System.out.println("Number of cars at this location: " + ((IResourceManager)s_resourceManagers.get("Cars")).queryCars(0, "0"));
-			}
-			catch (Exception e) {
-				e.printStackTrace();
 			}
 		}
 
