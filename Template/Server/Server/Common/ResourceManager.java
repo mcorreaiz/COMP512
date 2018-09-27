@@ -282,6 +282,14 @@ public class ResourceManager implements IResourceManager
 	public String queryCustomerInfo(int xid, int customerID) throws RemoteException
 	{
 		Trace.info("RM::queryCustomerInfo(" + xid + ", " + customerID + ") called");
+		if (isCustomers) {
+			String[] servers = {"Cars", "Flights", "Rooms"};
+			String bill = "Bill for customer " + customerID + "\n";;
+			for (String s : servers) {
+				bill += ((IResourceManager)s_resourceManagers.get(s)).queryCustomerInfo(xid, customerID);
+			}
+			return bill;
+		}
 		Customer customer = (Customer)readData(xid, Customer.getKey(customerID));
 		if (customer == null)
 		{
@@ -299,7 +307,7 @@ public class ResourceManager implements IResourceManager
 
 	public int newCustomer(int xid) throws RemoteException
 	{
-		
+
 		Trace.info("RM::newCustomer(" + xid + ") called");
 		// Generate a globally unique ID for the new customer
 		int cid = Integer.parseInt(String.valueOf(xid) +
@@ -308,8 +316,9 @@ public class ResourceManager implements IResourceManager
 		if (isCustomers) {
 			String[] servers = {"Cars", "Flights", "Rooms"};
 			for (String s : servers) {
-				((IResourceManager)s_resourceManagers.get(s)).newCostumer(xid);
+				((IResourceManager)s_resourceManagers.get(s)).newCustomer(xid, cid);
 			}
+			return cid;
 		}
 		Customer customer = new Customer(cid);
 		writeData(xid, customer.getKey(), customer);
@@ -320,6 +329,14 @@ public class ResourceManager implements IResourceManager
 	public boolean newCustomer(int xid, int customerID) throws RemoteException
 	{
 		Trace.info("RM::newCustomer(" + xid + ", " + customerID + ") called");
+		if (isCustomers) {
+			String[] servers = {"Cars", "Flights", "Rooms"};
+			boolean success = true;
+			for (String s : servers) {
+				success = success && ((IResourceManager)s_resourceManagers.get(s)).newCustomer(xid, customerID);
+			}
+			return success;
+		}
 		Customer customer = (Customer)readData(xid, Customer.getKey(customerID));
 		if (customer == null)
 		{
@@ -338,6 +355,14 @@ public class ResourceManager implements IResourceManager
 	public boolean deleteCustomer(int xid, int customerID) throws RemoteException
 	{
 		Trace.info("RM::deleteCustomer(" + xid + ", " + customerID + ") called");
+		if (isCustomers) {
+			String[] servers = {"Cars", "Flights", "Rooms"};
+			boolean success = true;
+			for (String s : servers) {
+				success = success && ((IResourceManager)s_resourceManagers.get(s)).deleteCustomer(xid, customerID);
+			}
+			return success;
+		}
 		Customer customer = (Customer)readData(xid, Customer.getKey(customerID));
 		if (customer == null)
 		{
