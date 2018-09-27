@@ -29,7 +29,7 @@ public class RMIResourceManager extends ResourceManager
 		{
 			s_serverName = args[0];
 		}
-		System.out.println(args);
+
 		if (args.length > 1) {
 			// It's CustomerRM. Initialize other RM's stubs.
 			String[] names = {"Cars", "Flights", "Rooms"};
