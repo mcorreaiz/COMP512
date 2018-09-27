@@ -26,9 +26,8 @@ public class RMIMiddleware extends Middleware
 	public static void main(String args[])
 	{
 		if (args.length > 3) {
-			// It's CustomerRM. Initialize other RM's stubs.
-			String[] names = {"Cars", "Flights", "Rooms","Customers"};
-			s_resourceManagers = new RMHashMap();
+			String[] names = {"Cars", "Flights", "Rooms", "Customers"};
+			s_resourceManagers = new HashMap();
 			try {
 				System.out.println("try to connect to resource managers");
 				for (int i = 0; i < 4; i++) {
@@ -66,7 +65,7 @@ public class RMIMiddleware extends Middleware
 		// Create the RMI server entry
 		try {
 			// Create a new Server object
-			RMIResourceManager server = new RMIResourceManager(s_serverName);
+			RMIMiddleware server = new RMIMiddleware(s_serverName);
 
 			// Dynamically generate the stub (client proxy)
 			IResourceManager resourceManager = (IResourceManager)UnicastRemoteObject.exportObject(server, 0);
@@ -93,6 +92,7 @@ public class RMIMiddleware extends Middleware
 					}
 				}
 			});
+			server.start();
 			System.out.println("'" + s_serverName + "' resource manager server ready and bound to '" + s_rmiPrefix + s_serverName + "'");
 		}
 		catch (Exception e) {

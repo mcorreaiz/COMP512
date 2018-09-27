@@ -34,8 +34,8 @@ public class Middleware implements IResourceManager
 		car_Manager = (IResourceManager)s_resourceManagers.get("Cars");
 		flight_Manager = (IResourceManager)s_resourceManagers.get("Flights");
 		room_Manager = (IResourceManager)s_resourceManagers.get("Rooms");
-		customer_Manager = (IResourceManager)s_resourceManagers.get("Customer");
-
+		customer_Manager = (IResourceManager)s_resourceManagers.get("Customers");
+		System.out.println("All Managers connected and ready to roll");
 	}
 
 
@@ -103,7 +103,7 @@ public class Middleware implements IResourceManager
 	// Deletes flight
 	public boolean deleteFlight(int xid, int flightNum) throws RemoteException
 	{
-		Trace.info("Middleware::deleteCustomer(" + xid + ", " + flightNum + ") called");
+		Trace.info("Middleware::deleteFlight(" + xid + ", " + flightNum + ") called");
 		if (flight_Manager.deleteFlight(xid, flightNum)) {
 					System.out.println("Flight Deleted");
 				} else {
@@ -115,7 +115,7 @@ public class Middleware implements IResourceManager
 	// Delete cars at a location
 	public boolean deleteCars(int xid, String location) throws RemoteException
 	{
-		Trace.info("Middleware::deleteCustomer(" + xid + ", " + location + ") called");
+		Trace.info("Middleware::deleteCars(" + xid + ", " + location + ") called");
 		if (car_Manager.deleteCars(xid, location)) {
 					System.out.println("Cars Deleted");
 				} else {
@@ -218,7 +218,7 @@ public class Middleware implements IResourceManager
 	public boolean reserveCar(int xid, int customerID, String location) throws RemoteException
 	{	
 		Trace.info("Middleware::reserveCar(" + xid + ", " + customerID + ", " + location + ") called");
-		if (car_Manager.reserveCar(xid, customerID, location)) {
+		if (customer_Manager.reserveCar(xid, customerID, location)) {
 					System.out.println("Car Reserved");
 				} else {
 					System.out.println("Car could not be reserved");
@@ -230,7 +230,7 @@ public class Middleware implements IResourceManager
 	public boolean reserveRoom(int xid, int customerID, String location) throws RemoteException
 	{
 		Trace.info("Middleware::reserveRoom(" + xid + ", " + customerID + ", " + location + ") called");
-		if (room_Manager.reserveRoom(xid, customerID, location)) {
+		if (customer_Manager.reserveRoom(xid, customerID, location)) {
 					System.out.println("Room Reserved");
 				} else {
 					System.out.println("Room could not be reserved");
@@ -260,10 +260,10 @@ public class Middleware implements IResourceManager
         }
 
         //reserve optional rooms & cars
-        if(car)
+        if(car==true)
         {
         	Trace.info("Middleware::reserveCar(" + xid + ", " + customerId + ", " + location + ") in bundle");
-			if(car_Manager.reserveCar(xid, customerId, location))
+			if(customer_Manager.reserveCar(xid, customerId, location))
 			{
 				System.out.println("Car Reserved");
 			} 
@@ -273,10 +273,10 @@ public class Middleware implements IResourceManager
 			}
         }
 
-        if(room)
+        if(room==true)
         {
         	Trace.info("Middleware::reserveRoom(" + xid + ", " + customerId + ", " + location + ") in bundle");
-        	if(room_Manager.reserveRoom(xid, customerId, location)) 
+        	if(customer_Manager.reserveRoom(xid, customerId, location)) 
         	{
         		System.out.println("Room Reserved");
 			} 
