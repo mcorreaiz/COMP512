@@ -1,17 +1,18 @@
 #!/bin/bash 
 
 #TODO: SPECIFY THE HOSTNAMES OF 4 CS MACHINES (lab1-1, cs-2, etc...)
-MACHINES=("cs-10" "cs-10" "cs-10" "cs-10" "cs-10" "cs-10")
+MACHINES=("cs-8" "cs-9" "cs-10" "cs-11" "cs-12")
 
 tmux new-session \; \
+	split-window -h \; \
 	split-window -h \; \
 	split-window -v \; \
 	split-window -v \; \
 	select-layout main-vertical \; \
 	select-pane -t 1 \; \
-	send-keys "ssh -t ${MACHINES[0]} \"cd $(pwd) > /dev/null; echo -n 'Connected to '; hostname; ./run_server.sh Flights\"" C-m \; \
+	send-keys "ssh -t ${MACHINES[0]} \"cd $(pwd) > /dev/null; echo -n 'Connected to '; hostname; ./run_server.sh Cars\"" C-m \; \
 	select-pane -t 2 \; \
-	send-keys "ssh -t ${MACHINES[1]} \"cd $(pwd) > /dev/null; echo -n 'Connected to '; hostname; ./run_server.sh Cars\"" C-m \; \
+	send-keys "ssh -t ${MACHINES[1]} \"cd $(pwd) > /dev/null; echo -n 'Connected to '; hostname; ./run_server.sh Flights\"" C-m \; \
 	select-pane -t 3 \; \
 	send-keys "ssh -t ${MACHINES[2]} \"cd $(pwd) > /dev/null; echo -n 'Connected to '; hostname; ./run_server.sh Rooms\"" C-m \; \
 	select-pane -t 4 \; \
