@@ -379,6 +379,19 @@ public abstract class Client
 				}
 				break;
 			}
+			case QueryLocationPopularity: {
+				checkArgumentsCount(3, arguments.size());
+
+				System.out.println("Query the number of reservations at the location [xid=" + arguments.elementAt(1) + "]");
+				System.out.println("-Location: " + arguments.elementAt(2));
+
+				int id = toInt(arguments.elementAt(1));
+				String location = arguments.elementAt(2);
+
+				int numReserved = m_resourceManager.queryLocationPopularity(id, location);
+				System.out.println("The number of reservations at this location: " + numReserved);
+				break;
+			}
 			case Bundle: {
 				if (arguments.size() < 7) {
 					System.err.println((char)27 + "[31;1mCommand exception: " + (char)27 + "[0mBundle command expects at least 7 arguments. Location \"help\" or \"help,<CommandName>\"");

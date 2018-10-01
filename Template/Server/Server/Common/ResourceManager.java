@@ -17,6 +17,9 @@ public class ResourceManager implements IResourceManager
 	protected RMHashMap m_data = new RMHashMap();
 	protected static HashMap s_resourceManagers;
 	private static boolean isCustomers;
+	private static HashMap<String, Integer> LocationMapCar = new HashMap<String, Integer>();
+	private static HashMap<String, Integer> LocationMapRoom = new HashMap<String, Integer>();
+
 
 	public ResourceManager(String p_name)
 	{
@@ -146,6 +149,35 @@ public class ResourceManager implements IResourceManager
 		}
 	}
 
+	protected boolean trackTotalCars(String key, int number)
+	{
+		// if there is no existing entry, create one in the hashmap
+		if (LocationMapCar.get(key) == null)
+		{
+			LocationMapCar.put(key,number);
+		}
+		else
+		{
+			LocationMapCar.put(key,number);
+		}
+		return true;
+	}
+
+	protected boolean trackTotalRooms(String key, int number)
+	{
+		// if there is no existing entry, create one in the hashmap
+		if (LocationMapRoom.get(key) == null)
+		{
+			LocationMapRoom.put(key,number);
+		}
+		else
+		{
+			LocationMapRoom.put(key,number);
+		}
+		return true;
+	}
+
+
 	// Create a new flight, or add seats to existing flight
 	// NOTE: if flightPrice <= 0 and the flight already exists, it maintains its current price
 	public boolean addFlight(int xid, int flightNum, int flightSeats, int flightPrice) throws RemoteException
@@ -184,6 +216,7 @@ public class ResourceManager implements IResourceManager
 			// Car location doesn't exist yet, add it
 			Car newObj = new Car(location, count, price);
 			writeData(xid, newObj.getKey(), newObj);
+			trackTotalCars(location, count);
 			Trace.info("RM::addCars(" + xid + ") created new location " + location + ", count=" + count + ", price=$" + price);
 		}
 		else
@@ -195,6 +228,7 @@ public class ResourceManager implements IResourceManager
 				curObj.setPrice(price);
 			}
 			writeData(xid, curObj.getKey(), curObj);
+			trackTotalCars(location, count);
 			Trace.info("RM::addCars(" + xid + ") modified existing location " + location + ", count=" + curObj.getCount() + ", price=$" + price);
 		}
 		return true;
@@ -211,6 +245,7 @@ public class ResourceManager implements IResourceManager
 			// Room location doesn't exist yet, add it
 			Room newObj = new Room(location, count, price);
 			writeData(xid, newObj.getKey(), newObj);
+			trackTotalRooms(location,count);
 			Trace.info("RM::addRooms(" + xid + ") created new room location " + location + ", count=" + count + ", price=$" + price);
 		} else {
 			// Add count to existing object and update price if greater than zero
@@ -220,6 +255,7 @@ public class ResourceManager implements IResourceManager
 				curObj.setPrice(price);
 			}
 			writeData(xid, curObj.getKey(), curObj);
+			trackTotalRooms(location,count);
 			Trace.info("RM::addRooms(" + xid + ") modified existing location " + location + ", count=" + curObj.getCount() + ", price=$" + price);
 		}
 		return true;
@@ -423,6 +459,24 @@ public class ResourceManager implements IResourceManager
 	public boolean bundle(int xid, int customerId, Vector<String> flightNumbers, String location, boolean car, boolean room) throws RemoteException
 	{
 		return false;
+	}
+
+	public int queryLocationPopularity(int xid, String location) throws RemoteException
+	{
+		int availCars = queryNum(xid, Car.getKey(location));
+		int totalCars = 0;
+		if (LocationMapCar.get(location) != null)
+		{
+			totalCars = LocationMapCar.get(location);
+		}
+		int availRooms = queryNum(xid, Room.getKey(location));
+		int totalRooms = 0;
+		if (LocationMapRoom.get(location) != null)
+		{
+			totalRooms = LocationMapRoom.get(location);
+		}
+		int sum = totalCars - availCars + totalRooms - availRooms;
+		return sum;
 	}
 
 	public String getName() throws RemoteException

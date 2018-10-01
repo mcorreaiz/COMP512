@@ -193,6 +193,14 @@ public interface IResourceManager extends Remote
     public boolean reserveRoom(int id, int customerID, String location)
 	throws RemoteException;
 
+	/**
+     * Query the number of reservation made at this location
+     *
+     * @return the number of reservation
+     */
+	public int queryLocationPopularity(int xid, String location) 
+	throws RemoteException;
+	
     /**
      * Reserve a bundle for the trip.
      *

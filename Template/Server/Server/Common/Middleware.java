@@ -288,6 +288,13 @@ public class Middleware implements IResourceManager
 		return true;
 	}
 
+	public int queryLocationPopularity(int xid, String location) throws RemoteException
+	{
+		int numCars = car_Manager.queryLocationPopularity(xid, location);
+		int numRooms = room_Manager.queryLocationPopularity(xid, location);
+		return (numCars + numRooms);
+	}
+
 	public String getName() throws RemoteException
 	{
 		return m_name;
