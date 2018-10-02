@@ -18,12 +18,10 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 
-public class RMIResourceManager extends ResourceManager
+public class TCPResourceManager extends ResourceManager
 {
 	private static String s_serverName = "Server";
-	private static int s_serverPort = 1099;
-	//TODO: REPLACE 'ALEX' WITH YOUR GROUP NUMBER TO COMPILE
-	private static String s_rmiPrefix = "group9";
+	private static int s_serverPort = 3000;
 
 	public static void main(String args[])
 	{
@@ -68,7 +66,7 @@ public class RMIResourceManager extends ResourceManager
 		// Create the RMI server entry
 		try {
 			// Create a new Server object
-			RMIResourceManager server = new RMIResourceManager(s_serverName);
+			TCPResourceManager server = new TCPResourceManager(s_serverName);
 
 			// Dynamically generate the stub (client proxy)
 			IResourceManager resourceManager = (IResourceManager)UnicastRemoteObject.exportObject(server, 0);
@@ -110,7 +108,7 @@ public class RMIResourceManager extends ResourceManager
 		}
 	}
 
-	public RMIResourceManager(String name)
+	public TCPResourceManager(String name)
 	{
 		super(name);
 	}
