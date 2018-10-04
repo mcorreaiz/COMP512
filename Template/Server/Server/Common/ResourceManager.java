@@ -29,6 +29,19 @@ public class ResourceManager implements IResourceManager
 		isCustomers = new String("Customers").equals(p_name);
 	}
 
+	private String CustomerTCPSend(String cmd, String name) {
+		String response = "false";
+		try {
+			TCPConnection connection = new TCPConnection((String)s_resourceManagers.get(name), my_serverPort, name);
+			response = connection.sendCommand(cmd);
+		} catch(Exception e) {
+			System.err.println((char)27 + "[31;1mServer exception: " + (char)27 + "[0mUncaught exception");
+			e.printStackTrace();
+			System.exit(1);
+		}
+		return response;
+	}
+
 	// Reads a data item
 	protected RMItem readData(int xid, String key)
 	{
@@ -323,9 +336,9 @@ public class ResourceManager implements IResourceManager
 		if (isCustomers) {
 			String[] servers = {"Cars", "Flights", "Rooms"};
 			String bill = "Bill for customer " + customerID + "\n";;
-			// for (String s : servers) {
-			// 	bill += ((IResourceManager)s_resourceManagers.get(s)).queryCustomerInfo(xid, customerID);
-			// }
+			for (String s : servers) {
+				bill += CustomerTCPSend(String.format("queryCustomerInfo,%d,%d", xid, customerID), s);
+			}
 			return bill;
 		}
 		Customer customer = (Customer)readData(xid, Customer.getKey(customerID));
@@ -353,15 +366,8 @@ public class ResourceManager implements IResourceManager
 		String.valueOf(Math.round(Math.random() * 100 + 1)));
 		if (isCustomers) {
 			String[] servers = {"Cars", "Flights", "Rooms"};
-			try {
-				for (String s : servers) {
-					connection = new TCPConnection((String)s_resourceManagers.get(s), my_serverPort, s);
-					connection.sendCommand(String.format("newCustomer,%d,%d", xid, cid));
-				}
-			} catch(Exception e) {
-				System.err.println((char)27 + "[31;1mServer exception: " + (char)27 + "[0mUncaught exception");
-				e.printStackTrace();
-				System.exit(1);
+			for (String s : servers) {
+				CustomerTCPSend(String.format("newCustomer,%d,%d", xid, cid), s);
 			}
 			return cid;
 		}
@@ -377,9 +383,9 @@ public class ResourceManager implements IResourceManager
 		if (isCustomers) {
 			String[] servers = {"Cars", "Flights", "Rooms"};
 			boolean success = true;
-			// for (String s : servers) {
-			// 	success = success && ((IResourceManager)s_resourceManagers.get(s)).newCustomer(xid, customerID);
-			// }
+			for (String s : servers) {
+				success = success && toBoolean(CustomerTCPSend(String.format("newCustomer,%d,%d", xid, customerID), s));
+			}
 			return success;
 		}
 		Customer customer = (Customer)readData(xid, Customer.getKey(customerID));
@@ -403,9 +409,9 @@ public class ResourceManager implements IResourceManager
 		if (isCustomers) {
 			String[] servers = {"Cars", "Flights", "Rooms"};
 			boolean success = true;
-			// for (String s : servers) {
-			// 	success = success && ((IResourceManager)s_resourceManagers.get(s)).deleteCustomer(xid, customerID);
-			// }
+			for (String s : servers) {
+				success = success && toBoolean(CustomerTCPSend(String.format("deleteCustomer,%d,%d", xid, customerID), s));
+			}
 			return success;
 		}
 		Customer customer = (Customer)readData(xid, Customer.getKey(customerID));
@@ -439,27 +445,30 @@ public class ResourceManager implements IResourceManager
 	// Adds flight reservation to this customer
 	public boolean reserveFlight(int xid, int customerID, int flightNum)
 	{
-		// if (isCustomers) {
-		// 	return ((IResourceManager)s_resourceManagers.get("Flights")).reserveFlight(xid, customerID, flightNum);
-		// }
+		if (isCustomers) {
+			String success = CustomerTCPSend(String.format("reserveFlight,%d,%d,%d", xid, customerID, flightNum), "Flights");
+			return toBoolean(success);
+		}
 		return reserveItem(xid, customerID, Flight.getKey(flightNum), String.valueOf(flightNum));
 	}
 
 	// Adds car reservation to this customer
 	public boolean reserveCar(int xid, int customerID, String location)
 	{
-		// if (isCustomers) {
-		// 	return ((IResourceManager)s_resourceManagers.get("Cars")).reserveCar(xid, customerID, location);
-		// }
+		if (isCustomers) {
+			String success = CustomerTCPSend(String.format("reserveCar,%d,%d,%s", xid, customerID, location), "Cars");
+			return toBoolean(success);
+		}
 		return reserveItem(xid, customerID, Car.getKey(location), location);
 	}
 
 	// Adds room reservation to this customer
 	public boolean reserveRoom(int xid, int customerID, String location)
 	{
-		// if (isCustomers) {
-		// 	return ((IResourceManager)s_resourceManagers.get("Rooms")).reserveRoom(xid, customerID, location);
-		// }
+		if (isCustomers) {
+			String success = CustomerTCPSend(String.format("reserveRoom,%d,%d,%s", xid, customerID, location), "Rooms");
+			return toBoolean(success);
+		}
 		return reserveItem(xid, customerID, Room.getKey(location), location);
 	}
 
@@ -490,5 +499,15 @@ public class ResourceManager implements IResourceManager
 	public String getName()
 	{
 		return m_name;
+	}
+	
+	public static int toInt(String string) throws NumberFormatException
+	{
+		return (new Integer(string)).intValue();
+	}
+
+	public static boolean toBoolean(String string)// throws Exception
+	{
+		return (new Boolean(string)).booleanValue();
 	}
 }
