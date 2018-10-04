@@ -17,20 +17,6 @@ class TCPServerRM extends Thread{
     service = resource;
   }
 
-
-  // public static void main(String argv[]) throws Exception
-  // {
-  //   ServerSocket welcomeSocket = new ServerSocket(serverPort);
-
-  //   while (true)
-  //   {
-  //     Socket connectionSocket = welcomeSocket.accept();
-  //     TCPServer thread = new TCPServer(connectionSocket);
-  //     thread.start();
-  //     System.out.println("thread created!");
-  //   }
-  // }
-
   public void run()
   {
     try{

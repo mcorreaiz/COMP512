@@ -17,20 +17,6 @@ class TCPServer extends Thread{
     service = middleware;
   }
 
-
-  // public static void main(String argv[]) throws Exception
-  // {
-  //   ServerSocket welcomeSocket = new ServerSocket(serverPort);
-
-  //   while (true)
-  //   {
-  //     Socket connectionSocket = welcomeSocket.accept();
-  //     TCPServer thread = new TCPServer(connectionSocket);
-  //     thread.start();
-  //     System.out.println("thread created!");
-  //   }
-  // }
-
   public void run()
   {
     try{
@@ -66,7 +52,7 @@ class TCPServer extends Thread{
       args[i] = arguments.get(i);
     }
 
-    if (args[0].equals("ConnectionTest"))
+    if (args[0].equals("connectiontest"))
     {
       return "online";
     }
