@@ -121,7 +121,7 @@ public abstract class Client
 				// int flightPrice = toInt(arguments.elementAt(4));
 				try {
 					TCPClient m_resourceManager = new TCPClient(s_serverHost, s_serverPort, s_serverName);
-serverResponse = m_resourceManager.sendCommand(parseCommand("addFlight", arguments));
+                    serverResponse = m_resourceManager.sendCommand(parseCommand("addFlight", arguments));
 					if (!isUnknown(serverResponse)) {
 						if (toBoolean(serverResponse)) {
 							System.out.println("Flight added");
@@ -150,7 +150,7 @@ serverResponse = m_resourceManager.sendCommand(parseCommand("addFlight", argumen
 				int price = toInt(arguments.elementAt(4));
 
 				TCPClient m_resourceManager = new TCPClient(s_serverHost, s_serverPort, s_serverName);
-serverResponse = m_resourceManager.sendCommand(parseCommand("addCars", arguments));
+                serverResponse = m_resourceManager.sendCommand(parseCommand("addCars", arguments));
 				if (!isUnknown(serverResponse)) {
 					if (toBoolean(serverResponse)) {
 						System.out.println("Cars added");
@@ -174,7 +174,7 @@ serverResponse = m_resourceManager.sendCommand(parseCommand("addCars", arguments
 				int price = toInt(arguments.elementAt(4));
 
 				TCPClient m_resourceManager = new TCPClient(s_serverHost, s_serverPort, s_serverName);
-serverResponse = m_resourceManager.sendCommand(parseCommand("addRooms", arguments));
+                serverResponse = m_resourceManager.sendCommand(parseCommand("addRooms", arguments));
 				if (!isUnknown(serverResponse)) {
 					if (toBoolean(serverResponse)) {
 						System.out.println("Rooms added");
@@ -191,7 +191,7 @@ serverResponse = m_resourceManager.sendCommand(parseCommand("addRooms", argument
 
 				int id = toInt(arguments.elementAt(1));
 				TCPClient m_resourceManager = new TCPClient(s_serverHost, s_serverPort, s_serverName);
-serverResponse = m_resourceManager.sendCommand(parseCommand("newCustomer", arguments));
+                serverResponse = m_resourceManager.sendCommand(parseCommand("newCustomer", arguments));
 				if (!isUnknown(serverResponse)) {
 					int customer = toInt(serverResponse);
 					System.out.println("Add customer ID: " + customer);
@@ -208,7 +208,7 @@ serverResponse = m_resourceManager.sendCommand(parseCommand("newCustomer", argum
 				int customerID = toInt(arguments.elementAt(2));
 
 				TCPClient m_resourceManager = new TCPClient(s_serverHost, s_serverPort, s_serverName);
-serverResponse = m_resourceManager.sendCommand(parseCommand("newCustomer", arguments));
+                serverResponse = m_resourceManager.sendCommand(parseCommand("newCustomer", arguments));
 				if (!isUnknown(serverResponse)) {
 					if (toBoolean(serverResponse)) {
 						System.out.println("Add customer ID: " + customerID);
@@ -228,7 +228,7 @@ serverResponse = m_resourceManager.sendCommand(parseCommand("newCustomer", argum
 				int flightNum = toInt(arguments.elementAt(2));
 
 				TCPClient m_resourceManager = new TCPClient(s_serverHost, s_serverPort, s_serverName);
-serverResponse = m_resourceManager.sendCommand(parseCommand("deleteFlight", arguments));
+                serverResponse = m_resourceManager.sendCommand(parseCommand("deleteFlight", arguments));
 				if (!isUnknown(serverResponse)) {
 					if (toBoolean(serverResponse)) {
 						System.out.println("Flight Deleted");
@@ -248,7 +248,7 @@ serverResponse = m_resourceManager.sendCommand(parseCommand("deleteFlight", argu
 				String location = arguments.elementAt(2);
 
 				TCPClient m_resourceManager = new TCPClient(s_serverHost, s_serverPort, s_serverName);
-serverResponse = m_resourceManager.sendCommand(parseCommand("deleteCars", arguments));
+                serverResponse = m_resourceManager.sendCommand(parseCommand("deleteCars", arguments));
 				if (!isUnknown(serverResponse)) {
 					if (toBoolean(serverResponse)) {
 						System.out.println("Cars Deleted");
@@ -268,7 +268,7 @@ serverResponse = m_resourceManager.sendCommand(parseCommand("deleteCars", argume
 				String location = arguments.elementAt(2);
 
 				TCPClient m_resourceManager = new TCPClient(s_serverHost, s_serverPort, s_serverName);
-serverResponse = m_resourceManager.sendCommand(parseCommand("deleteRooms", arguments));
+                serverResponse = m_resourceManager.sendCommand(parseCommand("deleteRooms", arguments));
 				if (!isUnknown(serverResponse)) {
 					if (toBoolean(serverResponse)) {
 						System.out.println("Rooms Deleted");
@@ -288,7 +288,7 @@ serverResponse = m_resourceManager.sendCommand(parseCommand("deleteRooms", argum
 				int customerID = toInt(arguments.elementAt(2));
 
 				TCPClient m_resourceManager = new TCPClient(s_serverHost, s_serverPort, s_serverName);
-serverResponse = m_resourceManager.sendCommand(parseCommand("deleteCustomer", arguments));
+                serverResponse = m_resourceManager.sendCommand(parseCommand("deleteCustomer", arguments));
 				if (!isUnknown(serverResponse)) {
 					if (toBoolean(serverResponse)) {
 						System.out.println("Customer Deleted");
@@ -308,7 +308,7 @@ serverResponse = m_resourceManager.sendCommand(parseCommand("deleteCustomer", ar
 				// int flightNum = toInt(arguments.elementAt(2));
 
 				TCPClient m_resourceManager = new TCPClient(s_serverHost, s_serverPort, s_serverName);
-serverResponse = m_resourceManager.sendCommand(parseCommand("queryFlight", arguments));
+                serverResponse = m_resourceManager.sendCommand(parseCommand("queryFlight", arguments));
 				if (!isUnknown(serverResponse)) {
 					int seats = toInt(serverResponse);
 					System.out.println("Number of seats available: " + seats);
@@ -325,7 +325,7 @@ serverResponse = m_resourceManager.sendCommand(parseCommand("queryFlight", argum
 				// String location = arguments.elementAt(2);
 
 				TCPClient m_resourceManager = new TCPClient(s_serverHost, s_serverPort, s_serverName);
-serverResponse = m_resourceManager.sendCommand(parseCommand("queryCars", arguments));
+                serverResponse = m_resourceManager.sendCommand(parseCommand("queryCars", arguments));
 				if (!isUnknown(serverResponse)) {
 					int numCars = toInt(serverResponse);
 					System.out.println("Number of cars at this location: " + numCars);
@@ -342,7 +342,7 @@ serverResponse = m_resourceManager.sendCommand(parseCommand("queryCars", argumen
 				// String location = arguments.elementAt(2);
 
 				TCPClient m_resourceManager = new TCPClient(s_serverHost, s_serverPort, s_serverName);
-serverResponse = m_resourceManager.sendCommand(parseCommand("queryRooms", arguments));
+                serverResponse = m_resourceManager.sendCommand(parseCommand("queryRooms", arguments));
 				if (!isUnknown(serverResponse)) {
 					int numRoom = toInt(serverResponse);
 					System.out.println("Number of rooms at this location: " + numRoom);
@@ -359,7 +359,7 @@ serverResponse = m_resourceManager.sendCommand(parseCommand("queryRooms", argume
 				// int customerID = toInt(arguments.elementAt(2));
 
 				TCPClient m_resourceManager = new TCPClient(s_serverHost, s_serverPort, s_serverName);
-serverResponse = m_resourceManager.sendCommand(parseCommand("queryCustomerInfo", arguments));
+                serverResponse = m_resourceManager.sendCommand(parseCommand("queryCustomerInfo", arguments));
 				if (!isUnknown(serverResponse)) {
 					String bill = serverResponse;
 					System.out.print(bill);
@@ -376,7 +376,7 @@ serverResponse = m_resourceManager.sendCommand(parseCommand("queryCustomerInfo",
 				// int flightNum = toInt(arguments.elementAt(2));
 
 				TCPClient m_resourceManager = new TCPClient(s_serverHost, s_serverPort, s_serverName);
-serverResponse = m_resourceManager.sendCommand(parseCommand("queryFlightPrice", arguments));
+                serverResponse = m_resourceManager.sendCommand(parseCommand("queryFlightPrice", arguments));
 				if (!isUnknown(serverResponse)) {
 					int price = toInt(serverResponse);
 					System.out.println("Price of a seat: " + price);
@@ -393,7 +393,7 @@ serverResponse = m_resourceManager.sendCommand(parseCommand("queryFlightPrice", 
 				// String location = arguments.elementAt(2);
 
 				TCPClient m_resourceManager = new TCPClient(s_serverHost, s_serverPort, s_serverName);
-serverResponse = m_resourceManager.sendCommand(parseCommand("queryCarsPrice", arguments));
+                serverResponse = m_resourceManager.sendCommand(parseCommand("queryCarsPrice", arguments));
 				if (!isUnknown(serverResponse)) {
 					int price = toInt(serverResponse);
 					System.out.println("Price of cars at this location: " + price);
@@ -410,7 +410,7 @@ serverResponse = m_resourceManager.sendCommand(parseCommand("queryCarsPrice", ar
 				// String location = arguments.elementAt(2);
 
 				TCPClient m_resourceManager = new TCPClient(s_serverHost, s_serverPort, s_serverName);
-serverResponse = m_resourceManager.sendCommand(parseCommand("queryRoomsPrice", arguments));
+                serverResponse = m_resourceManager.sendCommand(parseCommand("queryRoomsPrice", arguments));
 				if (!isUnknown(serverResponse)) {
 					int price = toInt(serverResponse);
 					System.out.println("Price of rooms at this location: " + price);
@@ -429,7 +429,7 @@ serverResponse = m_resourceManager.sendCommand(parseCommand("queryRoomsPrice", a
 				int flightNum = toInt(arguments.elementAt(3));
 
 				TCPClient m_resourceManager = new TCPClient(s_serverHost, s_serverPort, s_serverName);
-serverResponse = m_resourceManager.sendCommand(parseCommand("reserveFlight", arguments));
+                serverResponse = m_resourceManager.sendCommand(parseCommand("reserveFlight", arguments));
 				if (!isUnknown(serverResponse)) {
 					if (toBoolean(serverResponse)) {
 						System.out.println("Flight Reserved");
@@ -450,7 +450,7 @@ serverResponse = m_resourceManager.sendCommand(parseCommand("reserveFlight", arg
 				// int customerID = toInt(arguments.elementAt(2));
 				// String location = arguments.elementAt(3);
 				TCPClient m_resourceManager = new TCPClient(s_serverHost, s_serverPort, s_serverName);
-				serverResponse = m_resourceManager.sendCommand(parseCommand("reserveCar", arguments));
+				                serverResponse = m_resourceManager.sendCommand(parseCommand("reserveCar", arguments));
 				if (!isUnknown(serverResponse)) {
 					if (toBoolean(serverResponse)) {
 						System.out.println("Car Reserved");
@@ -472,7 +472,7 @@ serverResponse = m_resourceManager.sendCommand(parseCommand("reserveFlight", arg
 				// String location = arguments.elementAt(3);
 
 				TCPClient m_resourceManager = new TCPClient(s_serverHost, s_serverPort, s_serverName);
-serverResponse = m_resourceManager.sendCommand(parseCommand("reserveRoom", arguments));
+                serverResponse = m_resourceManager.sendCommand(parseCommand("reserveRoom", arguments));
 				if (!isUnknown(serverResponse)) {
 					if (toBoolean(serverResponse)) {
 						System.out.println("Room Reserved");
@@ -492,7 +492,7 @@ serverResponse = m_resourceManager.sendCommand(parseCommand("reserveRoom", argum
 				// String location = arguments.elementAt(2);
 
 				TCPClient m_resourceManager = new TCPClient(s_serverHost, s_serverPort, s_serverName);
-serverResponse = m_resourceManager.sendCommand(parseCommand("queryLocationPopularity", arguments));
+                serverResponse = m_resourceManager.sendCommand(parseCommand("queryLocationPopularity", arguments));
 				if (!isUnknown(serverResponse)) {
 					int numReserved = toInt(serverResponse);
 					System.out.println("The number of reservations at this location: " + numReserved);
@@ -511,8 +511,9 @@ serverResponse = m_resourceManager.sendCommand(parseCommand("queryLocationPopula
 				{
 					System.out.println("-Flight Number: " + arguments.elementAt(3+i));
 				}
-				System.out.println("-Car Location: " + arguments.elementAt(arguments.size()-2));
-				System.out.println("-Room Location: " + arguments.elementAt(arguments.size()-1));
+				System.out.println("-Location: " + arguments.elementAt(arguments.size()-3));
+				System.out.println("-Car: " + ((arguments.elementAt(arguments.size()-2)).equals("1") ? "Yes" : "No"));
+				System.out.println("-Room: " + ((arguments.elementAt(arguments.size()-1)).equals("1") ? "Yes" : "No"));
 
 				// int id = toInt(arguments.elementAt(1));
 				// int customerID = toInt(arguments.elementAt(2));
@@ -526,7 +527,7 @@ serverResponse = m_resourceManager.sendCommand(parseCommand("queryLocationPopula
 				// boolean room = toBoolean(arguments.elementAt(arguments.size()-1));
 
 				TCPClient m_resourceManager = new TCPClient(s_serverHost, s_serverPort, s_serverName);
-serverResponse = m_resourceManager.sendCommand(parseCommand("bundle", arguments));
+                serverResponse = m_resourceManager.sendCommand(parseCommand("bundle", arguments));
 				if (!isUnknown(serverResponse)) {
 					if (toBoolean(serverResponse)) {
 						System.out.println("Bundle Reserved");
