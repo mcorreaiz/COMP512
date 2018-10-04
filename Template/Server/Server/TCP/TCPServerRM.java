@@ -52,7 +52,7 @@ class TCPServerRM extends Thread{
       args[i] = arguments.get(i);
     }
 
-    if (args[0].equals("ConnectionTest"))
+    if (args[0].equals("connectiontest"))
     {
       return "online";
     }

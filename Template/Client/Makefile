@@ -18,4 +18,3 @@ clean:
 	rm -f Client/*.class
 	rm -f ../Server/RMIInterface.jar
 	rm -f java.policy
-	rm -f ClientManager.jar

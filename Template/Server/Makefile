@@ -20,4 +20,3 @@ clean:
 	rm -f Server/Interface/*.class Server/Common/*.class Server/TCP/*.class
 	rm -f RMIInterface.jar
 	rm -f java.policy
-	rm -f ../Client/ClientManager.jar

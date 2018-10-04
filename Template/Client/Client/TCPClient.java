@@ -26,7 +26,6 @@ class TCPClient {
     while ( (line = inFromServer.readLine()) != null ) {
       serverResponse += line;
     }
-    System.out.println(serverResponse); // TODO: Delete
     clientSocket.close();
 
     return serverResponse;
