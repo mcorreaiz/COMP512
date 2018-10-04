@@ -283,11 +283,11 @@ class TCPServer extends Thread{
       Vector<String> flightNumbers = new Vector<String>(numFlights);
       for (int i=0; i<numFlights; i++)
       {
-        flightNumbers.addElement(args[i+3]);
+        flightNumbers.addElement(args[i+4]);
       }
-      String location = args[3+numFlights];
-      boolean car = toBoolean(args[3+numFlights+1]);
-      boolean room = toBoolean(args[3+numFlights+2]);
+      String location = args[4+numFlights];
+      boolean car = toBoolean(args[4+numFlights+1]);
+      boolean room = toBoolean(args[4+numFlights+2]);
       boolean success = service.bundle(xid, customerID, flightNumbers, location, car, room);
       if (success)
       {
