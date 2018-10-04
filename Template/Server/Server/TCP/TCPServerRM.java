@@ -111,7 +111,7 @@ class TCPServerRM extends Thread{
       int cid = service.newCustomer(xid);
       return (Integer.toString(cid));
     }
-    else if (args[0].equals("newcustomer") && (arg_size == 2))
+    else if (args[0].equals("newcustomer") && (arg_size == 3))
     {
       int xid = toInt(args[1]);
       int customerID = toInt(args[2]);

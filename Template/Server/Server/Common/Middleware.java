@@ -174,7 +174,7 @@ public class Middleware implements IResourceManager
 	{
 		Trace.info("Middleware::deleteRooms(" + xid + ", " + location + ") called");
 		boolean response;
-		String cmd = String.format("deleteRooms,%d,$s", xid, location);
+		String cmd = String.format("deleteRooms,%d,%s", xid, location);
 		response = toBoolean(TCPSend(cmd, "Rooms"));
 
 		if (response)
@@ -229,7 +229,7 @@ public class Middleware implements IResourceManager
 	{
 		Trace.info("Middleware::queryRooms(" + xid + ", " + location + ") called");
 		int response;
-		String cmd = String.format("queryRooms,%d,$s", xid, location);
+		String cmd = String.format("queryRooms,%d,%s", xid, location);
 		response = toInt(TCPSend(cmd, "Rooms"));
 
 		return response;
@@ -261,7 +261,7 @@ public class Middleware implements IResourceManager
 	{
 		Trace.info("Middleware::queryCarsPrice(" + xid + ", " + location + ") called");
 		int response;
-		String cmd = String.format("queryCarsPrice,%d,$s", xid, location);
+		String cmd = String.format("queryCarsPrice,%d,%s", xid, location);
 		response = toInt(TCPSend(cmd, "Cars"));
 
 		return response;
@@ -272,7 +272,7 @@ public class Middleware implements IResourceManager
 	{
 		Trace.info("Middleware::queryRoomsPrice(" + xid + ", " + location + ") called");
 		int response;
-		String cmd = String.format("queryRoomsPrice,%d,$s", xid, location);
+		String cmd = String.format("queryRoomsPrice,%d,%s", xid, location);
 		response = toInt(TCPSend(cmd, "Rooms"));
 
 		return response;
@@ -283,7 +283,7 @@ public class Middleware implements IResourceManager
 	{
 		Trace.info("Middleware::reserveFlight(" + xid + ", " + customerID + ", " + flightNum + ") called");
 		boolean response;
-		String cmd = String.format("reserveFlight,%d,%d,$d", xid, customerID, flightNum);
+		String cmd = String.format("reserveFlight,%d,%d,%d", xid, customerID, flightNum);
 		response = toBoolean(TCPSend(cmd, "Customers"));
 
 		if (response)
@@ -300,7 +300,7 @@ public class Middleware implements IResourceManager
 	{
 		Trace.info("Middleware::reserveCar(" + xid + ", " + customerID + ", " + location + ") called");
 		boolean response;
-		String cmd = String.format("reserveCar,%d,%d,$s", xid, customerID, location);
+		String cmd = String.format("reserveCar,%d,%d,%s", xid, customerID, location);
 		response = toBoolean(TCPSend(cmd, "Customers"));
 
 		if (response)
@@ -317,7 +317,7 @@ public class Middleware implements IResourceManager
 	{
 		Trace.info("Middleware::reserveRoom(" + xid + ", " + customerID + ", " + location + ") called");
 		boolean response;
-		String cmd = String.format("reserveRoom,%d,%d,$s", xid, customerID, location);
+		String cmd = String.format("reserveRoom,%d,%d,%s", xid, customerID, location);
 		response = toBoolean(TCPSend(cmd, "Customers"));
 
 		if (response)
@@ -342,7 +342,7 @@ public class Middleware implements IResourceManager
         {
         	int flightNum = toInt(flightNums[i]);
         	Trace.info("Middleware::reserveFlight(" + xid + ", " + customerId + ", " + flightNum + ") in bundle");
-			String cmd = String.format("reserveFlight,%d,%d,$d", xid, customerId, flightNum);
+			String cmd = String.format("reserveFlight,%d,%d,%d", xid, customerId, flightNum);
 			response = toBoolean(TCPSend(cmd, "Customers"));
 	
 			if (response)
@@ -358,7 +358,7 @@ public class Middleware implements IResourceManager
         if(car==true)
         {
         	Trace.info("Middleware::reserveCar(" + xid + ", " + customerId + ", " + location + ") in bundle");
-			String cmd = String.format("reserveCar,%d,%d,$s", xid, customerId, location);
+			String cmd = String.format("reserveCar,%d,%d,%s", xid, customerId, location);
 			response = toBoolean(TCPSend(cmd, "Customers"));
 	
 			if (response)
@@ -374,7 +374,7 @@ public class Middleware implements IResourceManager
         if(room==true)
         {
         	Trace.info("Middleware::reserveRoom(" + xid + ", " + customerId + ", " + location + ") in bundle");
-			String cmd = String.format("reserveRoom,%d,%d,$s", xid, customerId, location);
+			String cmd = String.format("reserveRoom,%d,%d,%s", xid, customerId, location);
 			response = toBoolean(TCPSend(cmd, "Customers"));
 	
 			if (response)
@@ -392,7 +392,7 @@ public class Middleware implements IResourceManager
 	public int queryLocationPopularity(int xid, String location)
 	{
 		Trace.info("Middleware::queryLocationPopularity(" + xid + ", " + location + ")");
-		String cmd = String.format("queryLocationPopularity,%d,$s", xid, location);
+		String cmd = String.format("queryLocationPopularity,%d,%s", xid, location);
 		int numCars = toInt(TCPSend(cmd, "Cars"));
 		int numRooms = toInt(TCPSend(cmd, "Rooms"));
 
