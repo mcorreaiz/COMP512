@@ -1,15 +1,10 @@
 package Client;
 
-import Server.Interface.*;
-
 import java.util.*;
 import java.io.*;
 
 public class ClientManager extends Client
 {
-	private static String s_serverHost = "localhost";
-	private static int s_serverPort = 3000;
-	private static String s_serverName = "Server";
 
 	public static void main(String args[])
 	{
@@ -33,7 +28,6 @@ public class ClientManager extends Client
 
 		try {
 			ClientManager client = new ClientManager();
-			client.connectServer();
 			client.start();
 		}
 		catch (Exception e) {
@@ -59,7 +53,7 @@ public class ClientManager extends Client
 			boolean first = true;
 			while (true) {
 				try {
-					m_resourceManager = new TCPClient(server, port, name);
+					TCPClient connTest = new TCPClient(server, port, name);
 					System.out.println("Connected to '" + name + "' server [" + server + ":" + port + "]");
 					break;
 				}

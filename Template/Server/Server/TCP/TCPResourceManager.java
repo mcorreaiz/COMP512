@@ -22,6 +22,8 @@ public class TCPResourceManager extends ResourceManager
 {
 	private static String s_serverName = "Server";
 	private static int s_serverPort = 3000;
+	private ServerSocket serverSocket;
+	private static String connectMsg = "ConnectionTest";
 
 	public static void main(String args[])
 	{
@@ -35,20 +37,26 @@ public class TCPResourceManager extends ResourceManager
 			String[] names = {"Cars", "Flights", "Rooms"};
 			s_resourceManagers = new HashMap();
 			try {
-				for (int i = 0; i < 3; i++) {
-					// Iterate over three RM's
-					System.out.println("Trying to connect to " + names[i]);
+				for (int i = 1; i < 4; i++) {
+					//connect to 3 RMs
 					boolean first = true;
 					while (true) {
 						try {
-							Registry registry = LocateRegistry.getRegistry(args[i+1], s_serverPort);
-							s_resourceManagers.put(names[i], registry.lookup(s_rmiPrefix + names[i]));
-							System.out.println("Connected to '" + names[i] + "' server [" + args[i+1] + ":" + s_serverPort + "/" + s_rmiPrefix + names[i] + "]");
+							System.out.println("Trying to connect to " + names[i-1]);
+							System.out.println(args[i]);
+							TCPConnection testConnection = new TCPConnection(args[i], s_serverPort, names[i-1]);
+							String response = testConnection.sendCommand(connectMsg);
+							//store the connection if successful
+							my_serverPort = s_serverPort;
+							s_resourceManagers.put(names[i-1],args[i]);
+							System.out.println("Connected to '" + names[i-1] + "' server [" + args[i] + ":" + s_serverPort + "/" + names[i-1] + "]");
 							break;
 						}
-						catch (NotBoundException|RemoteException e) {
+						catch (Exception e) {
+							System.err.println((char)27 + "[31;1mServer exception: " + (char)27 + "[0mUncaught exception");
+							e.printStackTrace();
 							if (first) {
-								System.out.println("Waiting for '" + names[i] + "' server [" + args[i+1] + ":" + s_serverPort + "/" + s_rmiPrefix + names[i] + "]");
+								System.out.println("Waiting for '" + names[i] + "' server [" + args[i] + ":" + s_serverPort + "/" + names[i] + "]");
 								first = false;
 							}
 						}
@@ -63,53 +71,51 @@ public class TCPResourceManager extends ResourceManager
 			}
 		}
 
-		// Create the RMI server entry
+		// Create the TCP server instance
 		try {
 			// Create a new Server object
 			TCPResourceManager server = new TCPResourceManager(s_serverName);
+			System.out.println("'" + s_serverName + "' resource manager server ready and bound to '" + s_serverName + "'");
+			ServerSocket welcomeSocket = new ServerSocket(s_serverPort);
 
-			// Dynamically generate the stub (client proxy)
-			IResourceManager resourceManager = (IResourceManager)UnicastRemoteObject.exportObject(server, 0);
-
-			// Bind the remote object's stub in the registry
-			Registry l_registry;
-			try {
-				l_registry = LocateRegistry.createRegistry(s_serverPort);
-			} catch (RemoteException e) {
-				l_registry = LocateRegistry.getRegistry(s_serverPort);
+			while (true)
+			{
+				Socket connectionSocket = welcomeSocket.accept();
+				TCPServerRM thread = new TCPServerRM(connectionSocket, server);
+				thread.start();
+				System.out.println("Server thread created!");
 			}
-			final Registry registry = l_registry;
-			registry.rebind(s_rmiPrefix + s_serverName, resourceManager);
-
-			Runtime.getRuntime().addShutdownHook(new Thread() {
-				public void run() {
-					try {
-						registry.unbind(s_rmiPrefix + s_serverName);
-						System.out.println("'" + s_serverName + "' resource manager unbound");
-					}
-					catch(Exception e) {
-						System.err.println((char)27 + "[31;1mServer exception: " + (char)27 + "[0mUncaught exception");
-						e.printStackTrace();
-					}
-				}
-			});
-			System.out.println("'" + s_serverName + "' resource manager server ready and bound to '" + s_rmiPrefix + s_serverName + "'");
 		}
 		catch (Exception e) {
 			System.err.println((char)27 + "[31;1mServer exception: " + (char)27 + "[0mUncaught exception");
 			e.printStackTrace();
 			System.exit(1);
 		}
-
-		// Create and install a security manager
-		if (System.getSecurityManager() == null)
-		{
-			System.setSecurityManager(new SecurityManager());
-		}
 	}
 
-	public TCPResourceManager(String name)
+	public TCPResourceManager(String name) throws Exception
 	{
 		super(name);
+	}
+
+	private void listen() throws Exception {
+			String data = null;
+			Socket client = this.serverSocket.accept();
+			String clientAddress = client.getInetAddress().getHostAddress();
+			System.out.println("\r\nNew connection from " + clientAddress);
+
+			BufferedReader in = new BufferedReader(
+							new InputStreamReader(client.getInputStream()));
+			while ( (data = in.readLine()) != null ) {
+					System.out.println("\r\nMessage from " + clientAddress + ": " + data);
+			}
+	}
+
+	public InetAddress getSocketAddress() {
+			return this.serverSocket.getInetAddress();
+	}
+
+	public int getPort() {
+			return this.serverSocket.getLocalPort();
 	}
 }

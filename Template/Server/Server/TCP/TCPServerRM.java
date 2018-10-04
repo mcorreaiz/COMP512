@@ -5,16 +5,16 @@ import java.util.*;
 //sets up a TCP connection and executes one command
 
 
-class TCPServer extends Thread{
+class TCPServerRM extends Thread{
 
   private static int serverPort = 3000;
   private Socket connectionSocket;
-  private TCPMiddleware service;
+  private TCPResourceManager service;
 
-  public TCPServer(Socket connection, TCPMiddleware middleware)
+  public TCPServerRM(Socket connection, TCPResourceManager resource)
   {
     this.connectionSocket = connection;
-    service = middleware;
+    service = resource;
   }
 
 

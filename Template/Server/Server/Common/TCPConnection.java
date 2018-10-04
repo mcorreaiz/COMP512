@@ -1,15 +1,15 @@
-package Client;
+package Server.Common;
 
 import java.io.*;
 import java.net.*;
 
-class TCPClient {
+public class TCPConnection {
   private String serverHost;
   private int serverPort;
   private String serverName;
 
 
-  public TCPClient(String host, int port, String name) throws IOException,UnknownHostException {
+  public TCPConnection(String host, int port, String name) throws IOException,UnknownHostException {
       serverHost = host;
       serverPort = port;
       serverName = name;
