@@ -21,7 +21,7 @@ import java.net.Socket;
 public class TCPResourceManager extends ResourceManager
 {
 	private static String s_serverName = "Server";
-	private static int s_serverPort = 3000;
+	private static int s_serverPort = 2905;
 	private ServerSocket serverSocket;
 	private static String connectMsg = "ConnectionTest";
 
@@ -83,7 +83,6 @@ public class TCPResourceManager extends ResourceManager
 				Socket connectionSocket = welcomeSocket.accept();
 				TCPServerRM thread = new TCPServerRM(connectionSocket, server);
 				thread.start();
-				System.out.println("Server thread created!");
 			}
 		}
 		catch (Exception e) {

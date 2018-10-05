@@ -12,7 +12,7 @@ import java.net.*;
 public class TCPMiddleware extends Middleware
 {
 	private static String s_serverName = "Middleware";
-	private static int serverPort = 3000;
+	private static int serverPort = 2905;
 	private static String connectMsg = "ConnectionTest";
 
 
@@ -73,7 +73,6 @@ public class TCPMiddleware extends Middleware
 				Socket connectionSocket = welcomeSocket.accept();
 				TCPServer thread = new TCPServer(connectionSocket,middle);
 				thread.start();
-				System.out.println("server thread created!");
 			}
 		}
 		catch (Exception e)

@@ -335,9 +335,9 @@ public class ResourceManager implements IResourceManager
 		Trace.info("RM::queryCustomerInfo(" + xid + ", " + customerID + ") called");
 		if (isCustomers) {
 			String[] servers = {"Cars", "Flights", "Rooms"};
-			String bill = "Bill for customer " + customerID + "\n";;
+			String bill = "Bill for customer " + customerID + "\n";
 			for (String s : servers) {
-				bill += CustomerTCPSend(String.format("queryCustomerInfo,%d,%d", xid, customerID), s);
+				bill += (CustomerTCPSend(String.format("queryCustomerInfo,%d,%d", xid, customerID), s) + "\n");
 			}
 			return bill;
 		}

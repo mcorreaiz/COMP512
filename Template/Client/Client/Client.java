@@ -13,7 +13,7 @@ public abstract class Client
 {
 
 	protected static String s_serverHost = "localhost";
-	protected static int s_serverPort = 3000;
+	protected static int s_serverPort = 2905;
 	protected static String s_serverName = "Server";
 	public String serverResponse;
 
@@ -262,7 +262,7 @@ public abstract class Client
 				checkArgumentsCount(3, arguments.size());
 
 				System.out.println("Deleting all rooms at a particular location [xid=" + arguments.elementAt(1) + "]");
-				System.out.println("-Car Location: " + arguments.elementAt(2));
+				System.out.println("-Room Location: " + arguments.elementAt(2));
 
 				int id = toInt(arguments.elementAt(1));
 				String location = arguments.elementAt(2);

@@ -7,7 +7,7 @@ import java.util.*;
 
 class TCPServerRM extends Thread{
 
-  private static int serverPort = 3000;
+  private static int serverPort = 2905;
   private Socket connectionSocket;
   private TCPResourceManager service;
 
@@ -35,7 +35,6 @@ class TCPServerRM extends Thread{
     BufferedReader inFromClient = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream()));
     DataOutputStream outToClient = new DataOutputStream(connectionSocket.getOutputStream());
     clientSentence = inFromClient.readLine();
-    System.out.println("Received: " + clientSentence);
     outMessage = parse_execute(clientSentence);
     outToClient.writeBytes(outMessage + '\n');
     connectionSocket.close();

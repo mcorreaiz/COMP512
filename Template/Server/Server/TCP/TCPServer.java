@@ -7,7 +7,7 @@ import java.util.*;
 
 class TCPServer extends Thread{
 
-  private static int serverPort = 3000;
+  private static int serverPort = 2905;
   private Socket connectionSocket;
   private TCPMiddleware service;
 
@@ -35,7 +35,6 @@ class TCPServer extends Thread{
     BufferedReader inFromClient = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream()));
     DataOutputStream outToClient = new DataOutputStream(connectionSocket.getOutputStream());
     clientSentence = inFromClient.readLine();
-    System.out.println("Received: " + clientSentence);
     outMessage = parse_execute(clientSentence);
     outToClient.writeBytes(outMessage + '\n');
     connectionSocket.close();
@@ -286,8 +285,8 @@ class TCPServer extends Thread{
         flightNumbers.addElement(args[i+4]);
       }
       String location = args[4+numFlights];
-      boolean car = toBoolean(args[4+numFlights+1]);
-      boolean room = toBoolean(args[4+numFlights+2]);
+      boolean car = (args[4+numFlights+1]).equals("1");
+      boolean room = (args[4+numFlights+2]).equals("1");
       boolean success = service.bundle(xid, customerID, flightNumbers, location, car, room);
       if (success)
       {
