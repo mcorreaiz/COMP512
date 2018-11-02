@@ -460,32 +460,4 @@ public class ResourceManager implements IResourceManager
 	{
 		return m_name;
 	}
-
-	public int start() 
-	throws RemoteException {
-		return 1;
-	}
-
-	public boolean commit(int transactionId) 
-    throws RemoteException {
-		return true;
-	}//, TransactionAbortedException, InvalidTransactionException;
-
-    /**
-     * Abort transaction
-     */
-    public void abort(int transactionId) 
-    throws RemoteException {
-
-	}//, InvalidTransactionException;
-
-    /**
-     * Gracefully exit all servers
-     *
-     * @return Success
-     */
-    public boolean shutdown() 
-    throws RemoteException {
-		return true;
-	}
 }

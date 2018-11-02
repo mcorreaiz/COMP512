@@ -246,28 +246,4 @@ public interface IResourceManager extends Remote
      *
      * @return xid
      */
-    public int start() 
-        throws RemoteException;
-
-    /**
-     * Commit transaction
-     *
-     * @return Success
-     */
-    public boolean commit(int transactionId) 
-    throws RemoteException;//, TransactionAbortedException, InvalidTransactionException;
-
-    /**
-     * Abort transaction
-     */
-    public void abort(int transactionId) 
-    throws RemoteException;//, InvalidTransactionException;
-
-    /**
-     * Gracefully exit all servers
-     *
-     * @return Success
-     */
-    public boolean shutdown() 
-    throws RemoteException;
 }
