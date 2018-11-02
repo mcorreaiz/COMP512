@@ -25,12 +25,12 @@ public class RMIMiddleware extends Middleware
 
 	public static void main(String args[])
 	{
-		if (args.length > 3) {
-			String[] names = {"Cars", "Flights", "Rooms", "Customers"};
+		if (args.length > 2) {
+			String[] names = {"Cars", "Flights", "Rooms"};
 			s_resourceManagers = new HashMap();
 			try {
 				System.out.println("try to connect to resource managers");
-				for (int i = 0; i < 4; i++) {
+				for (int i = 0; i < 3; i++) {
 					//connect to 4 RMs
 					boolean first = true;
 					while (true) {
@@ -59,7 +59,7 @@ public class RMIMiddleware extends Middleware
 		}
 		else{
 			System.out.println("Only received " + args.length + " RM locations");
-			throw new IllegalArgumentException("Middleware must know about 4 other RM! missing RM");
+			throw new IllegalArgumentException("Middleware must know about 3 other RM! missing RM");
 		}
 
 		// Create the RMI server entry
@@ -92,7 +92,7 @@ public class RMIMiddleware extends Middleware
 					}
 				}
 			});
-			server.start();
+			server.initialize();
 			System.out.println("'" + s_serverName + "' resource manager server ready and bound to '" + s_rmiPrefix + s_serverName + "'");
 		}
 		catch (Exception e) {

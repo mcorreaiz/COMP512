@@ -24,6 +24,38 @@ import java.util.*;
 public interface IResourceManager extends Remote
 {
     /**
+     * Start a transaction.
+     *
+     * @return xid of a new transaction
+     */
+    public int start() 
+    throws RemoteException;
+
+    /**
+     * Commit a specific transaction.
+     *
+     * @return success
+     */
+    public boolean commit(int transactionId) 
+    throws RemoteException,TransactionAbortedException, InvalidTransactionException;
+
+    /**
+     * Abort a specific transaction.
+     *
+     * @return void
+     */
+    public void abort(int transactionId) 
+    throws RemoteException,InvalidTransactionException;
+
+    /**
+     * Gracefully shutdown all servers.
+     *
+     * @return void
+     */
+    public boolean shutdown() 
+    throws RemoteException;
+
+    /**
      * Add seats to a flight.
      *
      * In general this will be used to create a new
@@ -191,14 +223,6 @@ public interface IResourceManager extends Remote
      * @return Success
      */
     public boolean reserveRoom(int id, int customerID, String location)
-	throws RemoteException;
-
-	/**
-     * Query the number of reservation made at this location
-     *
-     * @return the number of reservation
-     */
-	public int queryLocationPopularity(int xid, String location) 
 	throws RemoteException;
 	
     /**

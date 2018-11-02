@@ -16,7 +16,6 @@ public class ResourceManager implements IResourceManager
 	protected String m_name = "";
 	protected RMHashMap m_data = new RMHashMap();
 	protected static HashMap s_resourceManagers;
-	private static boolean isCustomers;
 	private static HashMap<String, Integer> LocationMapCar = new HashMap<String, Integer>();
 	private static HashMap<String, Integer> LocationMapRoom = new HashMap<String, Integer>();
 
@@ -24,7 +23,26 @@ public class ResourceManager implements IResourceManager
 	public ResourceManager(String p_name)
 	{
 		m_name = p_name;
-		isCustomers = new String("Customers").equals(p_name);
+	}
+	
+	public int start() throws RemoteException
+	{
+		return (512);
+	}
+
+	public boolean commit(int transactionId) throws RemoteException,TransactionAbortedException, InvalidTransactionException
+	{
+		return true;
+	}
+
+	public void abort(int transactionId) throws RemoteException,InvalidTransactionException
+	{
+		
+	}
+
+	public boolean shutdown() throws RemoteException
+	{
+		return true;
 	}
 
 	// Reads a data item
@@ -318,14 +336,6 @@ public class ResourceManager implements IResourceManager
 	public String queryCustomerInfo(int xid, int customerID) throws RemoteException
 	{
 		Trace.info("RM::queryCustomerInfo(" + xid + ", " + customerID + ") called");
-		if (isCustomers) {
-			String[] servers = {"Cars", "Flights", "Rooms"};
-			String bill = "Bill for customer " + customerID + "\n";;
-			for (String s : servers) {
-				bill += ((IResourceManager)s_resourceManagers.get(s)).queryCustomerInfo(xid, customerID);
-			}
-			return bill;
-		}
 		Customer customer = (Customer)readData(xid, Customer.getKey(customerID));
 		if (customer == null)
 		{
@@ -349,13 +359,6 @@ public class ResourceManager implements IResourceManager
 		int cid = Integer.parseInt(String.valueOf(xid) +
 		String.valueOf(Calendar.getInstance().get(Calendar.MILLISECOND)) +
 		String.valueOf(Math.round(Math.random() * 100 + 1)));
-		if (isCustomers) {
-			String[] servers = {"Cars", "Flights", "Rooms"};
-			for (String s : servers) {
-				((IResourceManager)s_resourceManagers.get(s)).newCustomer(xid, cid);
-			}
-			return cid;
-		}
 		Customer customer = new Customer(cid);
 		writeData(xid, customer.getKey(), customer);
 		Trace.info("RM::newCustomer(" + cid + ") returns ID=" + cid);
@@ -365,14 +368,6 @@ public class ResourceManager implements IResourceManager
 	public boolean newCustomer(int xid, int customerID) throws RemoteException
 	{
 		Trace.info("RM::newCustomer(" + xid + ", " + customerID + ") called");
-		if (isCustomers) {
-			String[] servers = {"Cars", "Flights", "Rooms"};
-			boolean success = true;
-			for (String s : servers) {
-				success = success && ((IResourceManager)s_resourceManagers.get(s)).newCustomer(xid, customerID);
-			}
-			return success;
-		}
 		Customer customer = (Customer)readData(xid, Customer.getKey(customerID));
 		if (customer == null)
 		{
@@ -391,14 +386,6 @@ public class ResourceManager implements IResourceManager
 	public boolean deleteCustomer(int xid, int customerID) throws RemoteException
 	{
 		Trace.info("RM::deleteCustomer(" + xid + ", " + customerID + ") called");
-		if (isCustomers) {
-			String[] servers = {"Cars", "Flights", "Rooms"};
-			boolean success = true;
-			for (String s : servers) {
-				success = success && ((IResourceManager)s_resourceManagers.get(s)).deleteCustomer(xid, customerID);
-			}
-			return success;
-		}
 		Customer customer = (Customer)readData(xid, Customer.getKey(customerID));
 		if (customer == null)
 		{
@@ -430,28 +417,18 @@ public class ResourceManager implements IResourceManager
 	// Adds flight reservation to this customer
 	public boolean reserveFlight(int xid, int customerID, int flightNum) throws RemoteException
 	{
-		if (isCustomers) {
-			System.out.println("entered");
-			return ((IResourceManager)s_resourceManagers.get("Flights")).reserveFlight(xid, customerID, flightNum);
-		}
 		return reserveItem(xid, customerID, Flight.getKey(flightNum), String.valueOf(flightNum));
 	}
 
 	// Adds car reservation to this customer
 	public boolean reserveCar(int xid, int customerID, String location) throws RemoteException
 	{
-		if (isCustomers) {
-			return ((IResourceManager)s_resourceManagers.get("Cars")).reserveCar(xid, customerID, location);
-		}
 		return reserveItem(xid, customerID, Car.getKey(location), location);
 	}
 
 	// Adds room reservation to this customer
 	public boolean reserveRoom(int xid, int customerID, String location) throws RemoteException
 	{
-		if (isCustomers) {
-			return ((IResourceManager)s_resourceManagers.get("Rooms")).reserveRoom(xid, customerID, location);
-		}
 		return reserveItem(xid, customerID, Room.getKey(location), location);
 	}
 

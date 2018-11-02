@@ -19,8 +19,10 @@ public class Middleware implements IResourceManager
 	protected static IResourceManager car_Manager = null;
 	protected static IResourceManager flight_Manager = null;
 	protected static IResourceManager room_Manager = null;
-	protected static IResourceManager customer_Manager = null;
+	protected static ArrayList<Integer> CIDs=new ArrayList<Integer>();
 
+
+	// need to track xid and consider it concurrently
 
 
 
@@ -29,12 +31,31 @@ public class Middleware implements IResourceManager
 		m_name = p_name;
 	}
 
-	public void start()
+	public int start() throws RemoteException
+	{
+		return (512);
+	}
+
+	public boolean commit(int transactionId) throws RemoteException,TransactionAbortedException, InvalidTransactionException
+	{
+		return true;
+	}
+
+	public void abort(int transactionId) throws RemoteException,InvalidTransactionException
+	{
+		
+	}
+
+	public boolean shutdown() throws RemoteException
+	{
+		return true;
+	}
+
+	public void initialize()
 	{
 		car_Manager = (IResourceManager)s_resourceManagers.get("Cars");
 		flight_Manager = (IResourceManager)s_resourceManagers.get("Flights");
 		room_Manager = (IResourceManager)s_resourceManagers.get("Rooms");
-		customer_Manager = (IResourceManager)s_resourceManagers.get("Customers");
 		System.out.println("All Managers connected and ready to roll");
 	}
 
@@ -84,20 +105,40 @@ public class Middleware implements IResourceManager
 
 	public int newCustomer(int xid) throws RemoteException
 	{
-		Trace.info("Middleware::newCustomer(" + xid + ") called");
-		int customer = customer_Manager.newCustomer(xid);
-		return customer;
+		Trace.info("RM::newCustomer(" + xid + ") called");
+		// Generate a globally unique ID for the new customer
+		int cid = Integer.parseInt(String.valueOf(xid) +
+		String.valueOf(Calendar.getInstance().get(Calendar.MILLISECOND)) +
+		String.valueOf(Math.round(Math.random() * 100 + 1)));
+		// create new customers on other RMs as well
+		car_Manager.newCustomer(xid, cid);
+		room_Manager.newCustomer(xid, cid);
+		flight_Manager.newCustomer(xid, cid);
+		// add cid to customer list
+		CIDs.add(cid);
+		Trace.info("RM::newCustomer(" + cid + ") returns ID=" + cid);
+		return cid;
 	}
 
 	public boolean newCustomer(int xid, int customerID) throws RemoteException
 	{
 		Trace.info("Middleware::newCustomer(" + xid + ", " + customerID + ") called");
-		if (customer_Manager.newCustomer(xid, customerID)) {
-					System.out.println("Add customer ID: " + customerID);
-				} else {
-					System.out.println("Customer could not be added");
-				}
-		return true;
+		boolean success = true;
+
+		success = success && (car_Manager.newCustomer(xid, customerID));
+		success = success && (room_Manager.newCustomer(xid, customerID));
+		success = success && (flight_Manager.newCustomer(xid, customerID));
+		
+		if (success)
+		{
+			CIDs.add(customerID);
+			System.out.println("Add customer ID: " + customerID);
+		}
+		else
+		{
+			System.out.println("Customer could not be added");
+		}
+		return success;
 	}
 
 	// Deletes flight
@@ -139,12 +180,22 @@ public class Middleware implements IResourceManager
 	public boolean deleteCustomer(int xid, int customerID) throws RemoteException
 	{
 		Trace.info("Middleware::deleteCustomer(" + xid + ", " + customerID + ") called");
-		if (customer_Manager.deleteCustomer(xid, customerID)) {
-					System.out.println("Customer Deleted");
-				} else {
-					System.out.println("Customer could not be deleted");
-				}
-		return true;
+		boolean success = true;
+
+		success = success && (car_Manager.deleteCustomer(xid, customerID));
+		success = success && (room_Manager.deleteCustomer(xid, customerID));
+		success = success && (flight_Manager.deleteCustomer(xid, customerID));
+
+		if (success) 
+		{
+			CIDs.remove(customerID);
+			System.out.println("Customer Deleted");
+		} 
+		else 
+		{
+			System.out.println("Customer could not be deleted");
+		}
+		return success;
 	}
 
 	// Returns the number of empty seats in this flight
@@ -173,8 +224,17 @@ public class Middleware implements IResourceManager
 
 	public String queryCustomerInfo(int xid, int customerID) throws RemoteException
 	{
-		Trace.info("Middleware::queryCustomerInfo(" + xid + ", " + customerID + ") called");
-		String bill = customer_Manager.queryCustomerInfo(xid, customerID);
+		Trace.info("Middleware::queryCustomerInfo(" + xid + ", " + customerID + ") called");			
+		String bill = "";
+		bill += car_Manager.queryCustomerInfo(xid, customerID);
+		bill += flight_Manager.queryCustomerInfo(xid, customerID);
+		bill += room_Manager.queryCustomerInfo(xid, customerID);
+		if (bill.equals("")){
+			bill = "No bills found for customer " + customerID + "\n";
+		}
+		else{
+			bill = "Bill for customer " + customerID + "is: \n" + bill;
+		}
 		return bill;
 	}
 
@@ -206,43 +266,30 @@ public class Middleware implements IResourceManager
 	public boolean reserveFlight(int xid, int customerID, int flightNum) throws RemoteException
 	{
 		Trace.info("Middleware::reserveFlight(" + xid + ", " + customerID + ", " + flightNum + ") called");
-		if (customer_Manager.reserveFlight(xid, customerID, flightNum)) {
-					System.out.println("Flight Reserved");
-				} else {
-					System.out.println("Flight could not be reserved");
-				}
-		return true;
+		return (flight_Manager.reserveFlight(xid, customerID, flightNum));
 	}
 
 	// Adds car reservation to this customer
 	public boolean reserveCar(int xid, int customerID, String location) throws RemoteException
 	{	
 		Trace.info("Middleware::reserveCar(" + xid + ", " + customerID + ", " + location + ") called");
-		if (customer_Manager.reserveCar(xid, customerID, location)) {
-					System.out.println("Car Reserved");
-				} else {
-					System.out.println("Car could not be reserved");
-				}
-		return true;
+		return (car_Manager.reserveCar(xid, customerID, location));
 	}
 
 	// Adds room reservation to this customer
 	public boolean reserveRoom(int xid, int customerID, String location) throws RemoteException
 	{
 		Trace.info("Middleware::reserveRoom(" + xid + ", " + customerID + ", " + location + ") called");
-		if (customer_Manager.reserveRoom(xid, customerID, location)) {
-					System.out.println("Room Reserved");
-				} else {
-					System.out.println("Room could not be reserved");
-				}
-		return true;
+		return (room_Manager.reserveRoom(xid, customerID, location));
 	}
 
 	// Reserve bundle 
+	// if any of them false, revert all the changes 
 	public boolean bundle(int xid, int customerId, Vector<String> flightNumbers, String location, boolean car, boolean room) throws RemoteException
 	{
 		Trace.info("Middleware::bundle(" + xid + ", " + customerId + ", " + flightNumbers + "," + location + "," + car + "," + room + ") called");
 		//first reserve flights 
+		int numItemReserved = 0;
 		String[] flightNums = new String[flightNumbers.size()]; 
 		flightNums = (String[]) flightNumbers.toArray(flightNums); 
 
@@ -251,48 +298,53 @@ public class Middleware implements IResourceManager
         	int flightNum = Integer.parseInt(flightNums[i]);
         	Trace.info("Middleware::reserveFlight(" + xid + ", " + customerId + ", " + flightNum + ") in bundle");
 
-        	if (customer_Manager.reserveFlight(xid, customerId, flightNum)) {
+        	if (this.reserveFlight(xid, customerId, flightNum)) 
+        	{
         		System.out.println("Flight Reserved");
-				} 
-			else {
+        		numItemReserved++;
+			} 
+			else 
+			{
 				System.out.println("Flight could not be reserved");
-				}
+				//need to abort 
+				return false;
+			}
         }
 
         //reserve optional rooms & cars
         if(car==true)
         {
         	Trace.info("Middleware::reserveCar(" + xid + ", " + customerId + ", " + location + ") in bundle");
-			if(customer_Manager.reserveCar(xid, customerId, location))
+			if(this.reserveCar(xid, customerId, location))
 			{
 				System.out.println("Car Reserved");
+				numItemReserved++;
 			} 
 			else
 			{
 				System.out.println("Car could not be reserved");
+				//need to abort
+				return false;
 			}
         }
 
         if(room==true)
         {
         	Trace.info("Middleware::reserveRoom(" + xid + ", " + customerId + ", " + location + ") in bundle");
-        	if(customer_Manager.reserveRoom(xid, customerId, location)) 
+        	if(this.reserveRoom(xid, customerId, location)) 
         	{
         		System.out.println("Room Reserved");
+        		numItemReserved++;
+
 			} 
 			else 
 			{
 				System.out.println("Room could not be reserved");
+				//need to abort
+				return false;
 			}
         }
 		return true;
-	}
-
-	public int queryLocationPopularity(int xid, String location) throws RemoteException
-	{
-		int numCars = car_Manager.queryLocationPopularity(xid, location);
-		int numRooms = room_Manager.queryLocationPopularity(xid, location);
-		return (numCars + numRooms);
 	}
 
 	public String getName() throws RemoteException

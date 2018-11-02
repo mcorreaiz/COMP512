@@ -83,6 +83,48 @@ public abstract class Client
 				}
 				break;
 			}
+			case Start:
+			{
+				checkArgumentsCount(1, arguments.size());
+
+				System.out.println("Start a new transaction");
+				int xid = m_resourceManager.start();
+				System.out.println("Set xid to be " + xid);
+				//NEED TO STORE THIS XID SOMEWHERE
+				break;
+			}
+			case Commit:
+			{
+				checkArgumentsCount(2, arguments.size());
+				System.out.println("Committing transaction [xid=" + arguments.elementAt(1) + "]");
+				int xid = toInt(arguments.elementAt(1));
+
+				if (m_resourceManager.commit(xid))
+				{
+					System.out.println("Commit successful!");
+				}
+				else
+				{
+					System.out.println("Commit failed!");
+
+				}
+				break;
+			}
+			case Abort:
+			{
+				checkArgumentsCount(2, arguments.size());
+				System.out.println("Abort transaction [xid=" + arguments.elementAt(1) + "]");
+				int xid = toInt(arguments.elementAt(1));
+				m_resourceManager.abort(xid);
+				break;
+			}
+			case Shutdown:
+			{
+				checkArgumentsCount(1, arguments.size());
+				System.out.println("Gracefully shutdown all servers ");
+				m_resourceManager.shutdown();
+				break;
+			}
 			case AddFlight: {
 				checkArgumentsCount(5, arguments.size());
 
@@ -377,19 +419,6 @@ public abstract class Client
 				} else {
 					System.out.println("Room could not be reserved");
 				}
-				break;
-			}
-			case QueryLocationPopularity: {
-				checkArgumentsCount(3, arguments.size());
-
-				System.out.println("Query the number of reservations at the location [xid=" + arguments.elementAt(1) + "]");
-				System.out.println("-Location: " + arguments.elementAt(2));
-
-				int id = toInt(arguments.elementAt(1));
-				String location = arguments.elementAt(2);
-
-				int numReserved = m_resourceManager.queryLocationPopularity(id, location);
-				System.out.println("The number of reservations at this location: " + numReserved);
 				break;
 			}
 			case Bundle: {
