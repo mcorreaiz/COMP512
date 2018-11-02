@@ -64,8 +64,21 @@ public class LockManager
 
 						if (bConvert.get(0) == true) {
 							//TODO: Lock conversion 
-							// Trace.info("LM::lock(" + xid + ", " + data + ", " + lockType + ") converted");
-						} else {
+							//convert read lock to write lock
+							//remove the old locks
+							TransactionLockObject xLockNeo = (TransactionLockObject)xLockObject.clone();
+							xLockNeo.setLockType(TransactionLockObject.LockType.LOCK_READ);
+							DataLockObject dataLockNeo = (DataLockObject)dataLockObject.clone();
+							dataLockNeo.setLockType(TransactionLockObject.LockType.LOCK_READ);
+							this.lockTable.remove(xLockObject);
+							this.lockTable.remove(dataLockObject);
+
+							//add in the new locks
+							this.lockTable.add(xLockNeo);
+							this.lockTable.add(dataLockNeo);
+							Trace.info("LM::lock(" + xid + ", " + data + ", " + lockType + ") converted");
+						} 
+						else {
 							// Lock request that is not lock conversion
 							this.lockTable.add(xLockObject);
 							this.lockTable.add(dataLockObject);
@@ -221,13 +234,30 @@ public class LockManager
 				}
 				else if (dataLockObject.getLockType() == TransactionLockObject.LockType.LOCK_WRITE)
 				{
+					//TODO: Lock conversion
 					// Transaction already has a lock and is requesting a WRITE lock
 					// now there are two cases to analyze here
 					// (1) transaction already had a READ lock
-					// (2) transaction already had a WRITE lock
-					// Seeing the comments at the top of this function might be helpful
+					if (l_dataLockObject.getLockType() == TransactionLockObject.LockType.LOCK_READ)
+					{
+						// if there are other shared locks, can't grant write lock
+						if (size > 1){
+							return true;
+						}
+						else{
+							//convert lock(upgrade)
+							bitset.set(0);
+							return false;
+						}
 
-					//TODO: Lock conversion
+					}
+					else if (l_dataLockObject.getLockType() == TransactionLockObject.LockType.LOCK_WRITE)
+					{
+						// (2) transaction already had a WRITE lock
+						// Seeing the comments at the top of this function might be helpful
+						// Since transaction already has a write lock and another write lock request is submitted
+						throw new RedundantLockRequestException(dataLockObject.getXId(), "redundant WRITE lock request");
+					}
 				}
 			} 
 			else if (dataLockObject.getLockType() == TransactionLockObject.LockType.LOCK_READ)
