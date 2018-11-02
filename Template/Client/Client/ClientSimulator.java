@@ -44,16 +44,15 @@ public class ClientSimulator
             try {
                 RMIClient client = new RMIClient();
                 client.connectServer();
+				AutomatedClient ac = new AutomatedClient(client.m_resourceManager);
+				clients[i] = ac;
+				ac.start();
             } 
             catch (Exception e) {    
                 System.err.println((char)27 + "[31;1mClient exception: " + (char)27 + "[0mUncaught exception");
                 e.printStackTrace();
                 System.exit(1);
-            }
-            
-			AutomatedClient ac = new AutomatedClient(client.m_resourceManager);
-			clients[i] = ac;
-            ac.start();
+			}
         }
     }
 }

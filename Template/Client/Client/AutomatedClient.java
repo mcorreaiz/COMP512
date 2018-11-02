@@ -18,16 +18,23 @@ public class AutomatedClient extends Thread
     }
 
     public void run() {
-        for (int i=0; i < numQueries; i++) {
-            long startTime = System.nanoTime();
+		try {
+            for (int i=0; i < numQueries; i++) {
+                long startTime = System.nanoTime();
+            
+                int xid = resourceManager.start();
+                resourceManager.reserveFlight(xid, 1, 9090);
+                resourceManager.commit(xid);
 
-            int xid = resourceManager.start();
-            resourceManager.queryCustomer(xid, 1);
-            resourceManager.commit(xid);
-
-            long elapsedTime = System.nanoTime() - startTime;
-            times[i] = elapsedTime;
-            Thread.sleep((1000 / queriesPerSecond) + (int)(Math.random() * 100) - 50 - elapsedTime);
+                long elapsedTime = System.nanoTime() - startTime;
+                times[i] = elapsedTime;
+                Thread.sleep((1000 / queriesPerSecond) + (int)(Math.random() * 100) - 50 - elapsedTime);
+            }
+        }
+        catch (Exception e) {
+            System.err.println((char)27 + "[31;1mServer exception: " + (char)27 + "[0mUncaught exception");
+            e.printStackTrace();
+            System.exit(1);
         }
     }
 }

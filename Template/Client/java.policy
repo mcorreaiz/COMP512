@@ -1,3 +1,3 @@
-grant codebase "file:/media/matias/Documents/Universidad/VIII-Semestre/COMP512/Project/Template/Client/" {
+grant codebase "file:/home/2018/mcorre8/COMP512/Template/Client/" {
 	permission java.security.AllPermission;
 };
