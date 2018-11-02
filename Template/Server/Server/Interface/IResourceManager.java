@@ -37,7 +37,7 @@ public interface IResourceManager extends Remote
      * @return success
      */
     public boolean commit(int transactionId) 
-    throws RemoteException,TransactionAbortedException, InvalidTransactionException;
+    throws RemoteException, InvalidTransactionException, TransactionAbortedException;
 
     /**
      * Abort a specific transaction.
