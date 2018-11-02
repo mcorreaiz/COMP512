@@ -29,7 +29,7 @@ public class Middleware implements IResourceManager
 		m_name = p_name;
 	}
 
-	public void start()
+	public void _start()
 	{
 		car_Manager = (IResourceManager)s_resourceManagers.get("Cars");
 		flight_Manager = (IResourceManager)s_resourceManagers.get("Flights");
@@ -291,6 +291,34 @@ public class Middleware implements IResourceManager
 	public String getName() throws RemoteException
 	{
 		return m_name;
+	}
+
+	public int start() 
+	throws RemoteException {
+		return 1;
+	}
+	
+	public boolean commit(int transactionId) 
+    throws RemoteException {
+		return true;
+	}//, TransactionAbortedException, InvalidTransactionException;
+
+    /**
+     * Abort transaction
+     */
+    public void abort(int transactionId) 
+    throws RemoteException {
+
+	}//, InvalidTransactionException;
+
+    /**
+     * Gracefully exit all servers
+     *
+     * @return Success
+     */
+    public boolean shutdown() 
+    throws RemoteException {
+		return true;
 	}
 }
  

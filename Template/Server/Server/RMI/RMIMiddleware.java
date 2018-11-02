@@ -92,7 +92,7 @@ public class RMIMiddleware extends Middleware
 					}
 				}
 			});
-			server.start();
+			server._start();
 			System.out.println("'" + s_serverName + "' resource manager server ready and bound to '" + s_rmiPrefix + s_serverName + "'");
 		}
 		catch (Exception e) {
