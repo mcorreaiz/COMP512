@@ -20,7 +20,7 @@ public abstract class Client
 
 	public abstract void connectServer();
 
-	public void start()
+	public void _start()
 	{
 		// Prepare for reading commands
 		System.out.println();
@@ -465,6 +465,41 @@ public abstract class Client
 				} else {
 					System.out.println("Bundle could not be reserved");
 				}
+				break;
+			}
+			case Start: {
+				checkArgumentsCount(1, arguments.size());
+
+				System.out.println("Starting new transaction...");
+
+				int xid = m_resourceManager.start();
+
+				System.out.println("Received xid=" + xid);
+
+				break;
+			}
+			case Commit: {
+				checkArgumentsCount(2, arguments.size());
+
+				System.out.println("Committing transaction [xid=" + arguments.elementAt(1) + "]");
+				
+				int xid = toInt(arguments.elementAt(1));
+
+				if (m_resourceManager.commit(xid)) {
+					System.out.println("Transaction committed");
+				} else {
+					System.out.println("Transaction could not be committed");
+				}
+				break;
+			}
+			case Abort: {
+				checkArgumentsCount(2, arguments.size());
+
+				System.out.println("Aborting transaction [xid=" + arguments.elementAt(1) + "]");
+				
+				int xid = toInt(arguments.elementAt(1));
+
+				m_resourceManager.abort(xid);
 				break;
 			}
 			case Quit:
