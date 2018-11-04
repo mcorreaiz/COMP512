@@ -55,8 +55,6 @@ public interface IResourceManager extends Remote
     public boolean shutdown() 
     throws RemoteException;;
 
-    public int AddTransaction(int xid) throws RemoteException;;
-
     /**
      * Add seats to a flight.
      *

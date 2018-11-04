@@ -113,8 +113,7 @@ public abstract class Client
 				}
 				catch (Exception e) {    
 					System.err.println((char)27 + "[31;1mClient exception: " + (char)27 + "[0mUncaught exception");
-					e.printStackTrace();
-					System.exit(1);
+					e.getClass().getSimpleName();;
 				}
 			}
 			case Abort:
@@ -128,8 +127,7 @@ public abstract class Client
 				}
 				catch (Exception e) {    
 					System.err.println((char)27 + "[31;1mClient exception: " + (char)27 + "[0mUncaught exception");
-					e.printStackTrace();
-					System.exit(1);
+					e.getClass().getSimpleName();;
 				}
 			}
 			case Shutdown:

@@ -141,18 +141,6 @@ public class Middleware implements IResourceManager
 		if (existing.indexOf(manager) == -1)
 		{
 			writeTransaction(xid, existing+manager);
-			if(manager.equals("car"))
-			{
-				car_Manager.AddTransaction(xid);
-			}
-			else if (manager.equals("flight"))
-			{
-				flight_Manager.AddTransaction(xid);
-			}
-			else if (manager.equals("room"))
-			{
-				room_Manager.AddTransaction(xid);
-			}
 		}
 	}
 
@@ -504,12 +492,6 @@ public class Middleware implements IResourceManager
 	public String getName() throws RemoteException
 	{
 		return m_name;
-	}
-
-	public int AddTransaction(int xid) throws RemoteException
-	{
-		//not my job
-		return -102384658;
 	}
 }
  

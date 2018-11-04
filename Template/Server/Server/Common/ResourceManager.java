@@ -18,6 +18,7 @@ public class ResourceManager implements IResourceManager
 	protected RMHashMap m_data = new RMHashMap();
 	private LockManager lockManager = new LockManager();
 	private HashMap<Integer, RMHashMap> beforeImageLog = new HashMap<Integer, RMHashMap>();
+	private HashSet<Integer> startedTransactions = new HashSet<Integer>();
 	protected static HashMap s_resourceManagers;
 	private static HashMap<String, Integer> LocationMapCar = new HashMap<String, Integer>();
 	private static HashMap<String, Integer> LocationMapRoom = new HashMap<String, Integer>();
@@ -27,11 +28,42 @@ public class ResourceManager implements IResourceManager
 	{
 		m_name = p_name;
 	}
-	
-	public int AddTransaction(int xid) throws RemoteException
+
+	private void writeImage(int xid, String key, RMItem value)
 	{
-		beforeImageLog.put(xid, new RMHashMap());
-		return (512);
+		synchronized(beforeImageLog) {
+			RMHashMap hm = beforeImageLog.get(xid);
+			hm.put(key, value);
+			beforeImageLog.put(xid, hm);
+		}
+	}
+
+	private RMHashMap readImage(int xid)
+	{
+		synchronized(beforeImageLog) {
+			return beforeImageLog.get(xid);
+		}
+	}
+
+	private boolean hasImage(int xid)
+	{
+		synchronized(beforeImageLog) {
+			return beforeImageLog.containsKey(xid);
+		}
+	}
+
+	private void removeImage(int xid)
+	{
+		synchronized(beforeImageLog) {
+			beforeImageLog.remove(xid);
+		}
+	}
+	
+	public void addImage(int xid)
+	{
+		synchronized(beforeImageLog) {
+			beforeImageLog.put(xid, new RMHashMap());
+		}
 	}
 
 	public int start() throws RemoteException
@@ -39,25 +71,25 @@ public class ResourceManager implements IResourceManager
 		return (512);
 	}
 
-	public boolean commit(int transactionId) throws RemoteException,TransactionAbortedException,InvalidTransactionException
+	public boolean commit(int transactionId) throws RemoteException, TransactionAbortedException, InvalidTransactionException
 	{
 		// Delete transaction from log
-		beforeImageLog.remove(transactionId);
+		removeImage(transactionId);
 		return lockManager.UnlockAll(transactionId);
 	}
 
-	public void abort(int transactionId) throws RemoteException,InvalidTransactionException
+	public void abort(int transactionId) throws RemoteException, InvalidTransactionException
 	{
 		// Undo all ops.
 
-		RMHashMap image = beforeImageLog.get(transactionId);
-		System.out.println(image.toString());
-		for (String key : image.keySet()) {
-			m_data.put(key, image.get(key));
+		RMHashMap image = readImage(transactionId);
+		synchronized(m_data) {
+			for (String key : image.keySet()) {
+				m_data.put(key, image.get(key));
+			}
 		}
-
 		// Delete transaction from log
-		beforeImageLog.remove(transactionId);
+		removeImage(transactionId);
 		lockManager.UnlockAll(transactionId);
 	}
 
@@ -66,23 +98,29 @@ public class ResourceManager implements IResourceManager
 		return true;
 	}
 
-	protected boolean isInvalidTransaction(int xid)
-	{
-		return (!beforeImageLog.containsKey(xid));
+	private void beforeFilter(int xid, String key, TransactionLockObject.LockType lock) throws TransactionAbortedException, InvalidTransactionException {
+		if (!hasImage(xid)) {
+			if (startedTransactions.contains(xid))  {
+				// If there's no image for this Tx but it was once started, it means that it was committed/aborted
+				throw new InvalidTransactionException();
+			} else {
+				// Else, new transaction.
+				addImage(xid);
+				startedTransactions.add(xid);
+			}
+		}
+		try {
+			lockManager.Lock(xid, key, lock);
+		}
+		catch (DeadlockException e){
+			throw new TransactionAbortedException();
+		}
 	}
 
 	// Reads a data item
 	protected RMItem readData(int xid, String key) throws TransactionAbortedException, InvalidTransactionException
 	{
-		if (isInvalidTransaction(xid)) {
-			throw new InvalidTransactionException();
-		}
-		try {
-			lockManager.Lock(xid, key, TransactionLockObject.LockType.LOCK_READ);
-		}
-		catch (DeadlockException e){
-			throw new TransactionAbortedException();
-		}
+		beforeFilter(xid, key, TransactionLockObject.LockType.LOCK_READ);
 		synchronized(m_data) {
 			RMItem item = m_data.get(key);
 			if (item != null) {
@@ -95,19 +133,12 @@ public class ResourceManager implements IResourceManager
 	// Writes a data item
 	protected void writeData(int xid, String key, RMItem value) throws TransactionAbortedException, InvalidTransactionException
 	{
-		if (isInvalidTransaction(xid)) {
-			throw new InvalidTransactionException();
-		}
-		try {
-			lockManager.Lock(xid, key, TransactionLockObject.LockType.LOCK_WRITE);
-		}
-		catch (DeadlockException e){
-			throw new TransactionAbortedException();
-		}
+		beforeFilter(xid, key, TransactionLockObject.LockType.LOCK_WRITE);
 		synchronized(m_data) {
-			if (!beforeImageLog.get(xid).containsKey(key)) {
+			if (!readImage(xid).containsKey(key)) {
+				RMItem item = readData(xid, key);
 				System.out.println("Write log");
-				beforeImageLog.get(xid).put(key, value);
+				writeImage(xid, key, item);
 			}
 			m_data.put(key, value);
 		}
@@ -116,17 +147,8 @@ public class ResourceManager implements IResourceManager
 	// Remove the item out of storage
 	protected void removeData(int xid, String key) throws TransactionAbortedException, InvalidTransactionException
 	{	
-		if (isInvalidTransaction(xid)) {
-			throw new InvalidTransactionException();
-		}
-		try {
-			lockManager.Lock(xid, key, TransactionLockObject.LockType.LOCK_WRITE);
-		}
-		catch (DeadlockException e){
-			throw new TransactionAbortedException();
-		}
+		beforeFilter(xid, key, TransactionLockObject.LockType.LOCK_WRITE);
 		synchronized(m_data) {
-			beforeImageLog.get(xid).remove(key);
 			m_data.remove(key);
 		}
 	}
