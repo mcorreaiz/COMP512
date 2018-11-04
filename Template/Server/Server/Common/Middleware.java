@@ -56,19 +56,23 @@ public class Middleware implements IResourceManager
 
 	public boolean commit(int transactionId) throws RemoteException,TransactionAbortedException,InvalidTransactionException
 	{
+		Trace.info("Middleware::commit(" + transactionId + ") called");
 		checkExistence(transactionId);
 		String existing = readTransaction(transactionId);
 
 		if (existing.indexOf("car") >= 0)
 		{
+			Trace.info("Middleware asks nicely that car Manager should commit(" + transactionId + ")");
 			car_Manager.commit(transactionId);
 		}
 		if (existing.indexOf("flight") >= 0)
 		{
+			Trace.info("Middleware asks nicely that flight Manager should commit(" + transactionId + ")");			
 			flight_Manager.commit(transactionId);
 		}
 		if (existing.indexOf("room") >= 0)
 		{
+			Trace.info("Middleware asks nicely that room Manager should commit(" + transactionId + ")");
 			room_Manager.commit(transactionId);
 		}
 
@@ -78,20 +82,23 @@ public class Middleware implements IResourceManager
 
 	public void abort(int transactionId) throws RemoteException,InvalidTransactionException
 	{
+		Trace.info("Middleware::abort(" + transactionId + ") called");
 		checkExistence(transactionId);
 		String existing = readTransaction(transactionId);
 		System.out.println(existing);
 		if (existing.indexOf("car") >= 0)
 		{
+			Trace.info("Middleware demands that car Manager must abort(" + transactionId + ")");			
 			car_Manager.abort(transactionId);
 		}
 		if (existing.indexOf("flight") >= 0)
 		{
-			System.out.println("Aborting flight..");
+			Trace.info("Middleware demands that flight Manager must abort(" + transactionId + ")");						
 			flight_Manager.abort(transactionId);
 		}
 		if (existing.indexOf("room") >= 0)
 		{
+			Trace.info("Middleware demands that room Manager must abort(" + transactionId + ")");						
 			room_Manager.abort(transactionId);
 		}
 
@@ -100,7 +107,31 @@ public class Middleware implements IResourceManager
 
 	public boolean shutdown() throws RemoteException
 	{
-		return true;
+		Trace.info("Middleware::shutdown() called");
+		boolean success = true;
+
+		Trace.info("Middleware asks car Manager to gracefully shutdown()");			
+		success = success && (car_Manager.shutdown());
+		Trace.info("Middleware then asks flight Manager to gracefully shutdown()");		
+		success = success && (flight_Manager.shutdown());
+		Trace.info("Lastly Middleware asks room Manager to gracefully shutdown()");	
+		success = success && (room_Manager.shutdown());	
+
+		new Thread(new Runnable() {
+			@Override
+			public void run() {
+				try{
+					System.out.println("Shutdown in 2 seconds");
+					Thread.sleep(2000);
+					System.exit(0);
+				}
+				catch(InterruptedException e){
+					System.exit(0);
+				}
+			}   
+		}).start();
+
+		return success;
 	}
 
 
