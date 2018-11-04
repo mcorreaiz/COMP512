@@ -8,6 +8,7 @@ import java.rmi.RemoteException;
 import java.rmi.ConnectException;
 import java.rmi.ServerException;
 import java.rmi.UnmarshalException;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Middleware implements IResourceManager
 {
@@ -17,19 +18,89 @@ public class Middleware implements IResourceManager
 
 	// Transaction Manager component
 	protected Integer highestXid;
+	protected static ArrayList<Integer> abortedT = new ArrayList<Integer>();
 	protected static HashMap<Integer, String> transactionInfo;
+	private static int CONNECTION_TIMEOUT = 60000;
+	//manage transaction timeout 
+	private ConcurrentHashMap<Integer, Thread> timeTable = new ConcurrentHashMap<Integer, Thread>();
 	
+	//resource managers 
 	protected static HashMap s_resourceManagers;
+	//client IDs
 	protected static ArrayList<Integer> CIDs = new ArrayList<Integer>();
-
 	protected static IResourceManager car_Manager = null;
 	protected static IResourceManager flight_Manager = null;
 	protected static IResourceManager room_Manager = null;
 
 
-	// need to track xid and consider it concurrently
 
+	// keeping track of timeout 
+	public class TimeOutThread implements Runnable {
+		private int xid = 0;
 
+		public TimeOutThread(int xid) {
+			this.xid = xid;
+		}
+
+		@Override
+		public void run() {
+			try 
+			{
+				Thread.sleep(CONNECTION_TIMEOUT);
+			} 
+			catch (InterruptedException e) 
+			{
+				//exit if interrupted
+				Thread.currentThread().interrupt();
+				return;
+			}
+
+			try 
+			{
+				Trace.info("Middleware::Transaction" + Integer.toString(xid) + " connection timeout");
+				abort(this.xid);
+			} 
+			catch (InvalidTransactionException e) 
+			{
+				Trace.info("Middleware::Transaction" + Integer.toString(xid) + " is no longer valid.");
+			} 
+			catch (RemoteException e) 
+			{
+				Trace.info("Middleware::Transaction" + Integer.toString(xid) + " has remote exception");
+			}
+		}
+	}
+
+	// start a timer for a new transaction
+	private void startTimer(int xid) {
+		Thread now = new Thread(new TimeOutThread(xid));
+		now.start();
+		timeTable.put(xid, now);
+		Trace.info("timer has been reset for transaction " + xid);
+	}
+
+	// reset a Timer when new activity arrives 
+	private synchronized void resetTimer(int xid) throws InvalidTransactionException, TransactionAbortedException {
+		// do nothing if it is not in the time table
+		if (timeTable.get(xid) != null) 
+		{
+			killTimer(xid);
+			startTimer(xid);
+		} 
+	}
+
+	// eliminate outdated timer thread
+	public void killTimer(int id) {
+		Thread p = timeTable.get(id);
+		if (p != null) {
+			p.interrupt();
+		}
+	}
+
+	//remove a timer when transaction is either commited or aborted
+	private void removeTimer(int xid) {
+		timeTable.remove(xid);
+	}
 
 	public Middleware(String p_name)
 	{
@@ -43,14 +114,16 @@ public class Middleware implements IResourceManager
 		room_Manager = (IResourceManager)s_resourceManagers.get("Rooms");
 		transactionInfo = new HashMap<Integer, String>();
 		highestXid = 0;
-		System.out.println("All Managers connected and ready to roll");
+		Trace.info("All Managers connected and ready to roll");
 	}
+
 
 	public int start() throws RemoteException
 	{
 		//initialize a transaction for all RMs
 		int xid = incrementXid();
 		writeTransaction(xid,"");
+		startTimer(xid);
 		return xid;
 	}
 
@@ -75,15 +148,23 @@ public class Middleware implements IResourceManager
 			Trace.info("Middleware asks nicely that room Manager should commit(" + transactionId + ")");
 			room_Manager.commit(transactionId);
 		}
-
 		removeTransaction(transactionId);
+		killTimer(transactionId);
+		removeTimer(transactionId);
 		return true;
 	}
 
 	public void abort(int transactionId) throws RemoteException,InvalidTransactionException
 	{
 		Trace.info("Middleware::abort(" + transactionId + ") called");
-		checkExistence(transactionId);
+		try{
+			checkExistence(transactionId);
+		}
+		catch (TransactionAbortedException e)
+		{
+			Trace.info(transactionId + " already aborted");
+		}
+
 		String existing = readTransaction(transactionId);
 		System.out.println(existing);
 		if (existing.indexOf("car") >= 0)
@@ -101,14 +182,31 @@ public class Middleware implements IResourceManager
 			Trace.info("Middleware demands that room Manager must abort(" + transactionId + ")");						
 			room_Manager.abort(transactionId);
 		}
-
 		removeTransaction(transactionId);
+		abortedT.add(transactionId);
+		killTimer(transactionId);
+		removeTimer(transactionId);
 	}
 
 	public boolean shutdown() throws RemoteException
 	{
 		Trace.info("Middleware::shutdown() called");
 		boolean success = true;
+
+		//abort all active transaction first 
+		Iterator<Integer> xids;
+		synchronized(transactionInfo){
+			xids = transactionInfo.keySet().iterator();
+		}
+		while(xids.hasNext()){
+			try{
+				abort(xids.next());
+			}
+			catch(InvalidTransactionException e)
+			{
+				Trace.info("xid doesn't exist");
+			}
+		}
 
 		Trace.info("Middleware asks car Manager to gracefully shutdown()");			
 		success = success && (car_Manager.shutdown());
@@ -176,12 +274,24 @@ public class Middleware implements IResourceManager
 	}
 
 	//check if a transaction is started or not
-	private void checkExistence(int xid) throws InvalidTransactionException
+	private void checkExistence(int xid) throws TransactionAbortedException,InvalidTransactionException
 	{
 		synchronized(transactionInfo)
 		{
-			if (!transactionInfo.containsKey(xid)){
-				throw new InvalidTransactionException("xid doesn't exist");
+			if (!transactionInfo.containsKey(xid))
+			{
+				if (abortedT.contains(xid))
+				{
+					throw new TransactionAbortedException("this transaction has been aborted");
+				}
+				else
+				{
+					throw new InvalidTransactionException("xid doesn't exist");
+				}
+			}
+			else
+			{
+				resetTimer(xid);
 			}
 		}
 
@@ -247,12 +357,13 @@ public class Middleware implements IResourceManager
 		int cid = Integer.parseInt(String.valueOf(xid) +
 		String.valueOf(Calendar.getInstance().get(Calendar.MILLISECOND)) +
 		String.valueOf(Math.round(Math.random() * 100 + 1)));
+
+		CIDs.add(cid);
 		// create new customers on other RMs as well
 		car_Manager.newCustomer(xid, cid);
 		room_Manager.newCustomer(xid, cid);
 		flight_Manager.newCustomer(xid, cid);
 		// add cid to customer list
-		CIDs.add(cid);
 		Trace.info("RM::newCustomer(" + cid + ") returns ID=" + cid);
 		return cid;
 	}
@@ -329,32 +440,41 @@ public class Middleware implements IResourceManager
 	{
 		Trace.info("Middleware::deleteCustomer(" + xid + ", " + customerID + ") called");
 		boolean success = true;
-		
-		checkExistence(xid);
-		associateManager(xid, "car");
-		associateManager(xid, "flight");
-		associateManager(xid, "room");
 
-		success = success && (car_Manager.deleteCustomer(xid, customerID));
-		success = success && (room_Manager.deleteCustomer(xid, customerID));
-		success = success && (flight_Manager.deleteCustomer(xid, customerID));
+		if (CIDs.contains(customerID)){
+			checkExistence(xid);
 
-		if (success) 
-		{
-			CIDs.remove(customerID);
-			System.out.println("Customer Deleted");
-		} 
-		else 
-		{
-			System.out.println("Customer could not be deleted");
+			associateManager(xid, "car");
+			associateManager(xid, "flight");
+			associateManager(xid, "room");
+
+			success = success && (car_Manager.deleteCustomer(xid, customerID));
+			success = success && (room_Manager.deleteCustomer(xid, customerID));
+			success = success && (flight_Manager.deleteCustomer(xid, customerID));
+
+			if (success) 
+			{
+				CIDs.remove(customerID);
+				Trace.info("Customer Deleted");
+			} 
+			else 
+			{
+				Trace.info("Customer could not be deleted");
+			}
+			return success;
 		}
-		return success;
+		else
+		{
+			Trace.info("Customer doesn't exit");
+			return false;
+		}
 	}
 
 	// Returns the number of empty seats in this flight
 	public int queryFlight(int xid, int flightNum) throws RemoteException,TransactionAbortedException,InvalidTransactionException
 	{
 		Trace.info("Middleware::queryFlight(" + xid + ", " + flightNum + ") called");
+		checkExistence(xid);
 		int seats = flight_Manager.queryFlight(xid, flightNum);
 		return seats;
 	}
@@ -363,6 +483,7 @@ public class Middleware implements IResourceManager
 	public int queryCars(int xid, String location) throws RemoteException,TransactionAbortedException,InvalidTransactionException
 	{
 		Trace.info("Middleware::queryCars(" + xid + ", " + location + ") called");
+		checkExistence(xid);
 		int numCars = car_Manager.queryCars(xid, location);
 		return numCars;		
 	}
@@ -371,22 +492,31 @@ public class Middleware implements IResourceManager
 	public int queryRooms(int xid, String location) throws RemoteException,TransactionAbortedException,InvalidTransactionException
 	{
 		Trace.info("Middleware::queryRooms(" + xid + ", " + location + ") called");
+		checkExistence(xid);
 		int numRoom = room_Manager.queryRooms(xid, location);
 		return numRoom;
 	}
 
 	public String queryCustomerInfo(int xid, int customerID) throws RemoteException,TransactionAbortedException,InvalidTransactionException
 	{
-		Trace.info("Middleware::queryCustomerInfo(" + xid + ", " + customerID + ") called");			
+		Trace.info("Middleware::queryCustomerInfo(" + xid + ", " + customerID + ") called");	
+		checkExistence(xid);		
 		String bill = "";
-		bill += car_Manager.queryCustomerInfo(xid, customerID);
-		bill += flight_Manager.queryCustomerInfo(xid, customerID);
-		bill += room_Manager.queryCustomerInfo(xid, customerID);
-		if (bill.equals("")){
-			bill = "No bills found for customer " + customerID + "\n";
+		if (CIDs.contains(customerID))
+		{
+			bill += car_Manager.queryCustomerInfo(xid, customerID);
+			bill += flight_Manager.queryCustomerInfo(xid, customerID);
+			bill += room_Manager.queryCustomerInfo(xid, customerID);
+			if (bill.equals("")){
+				bill = "No bills found for customer " + customerID + "\n";
+			}
+			else{
+				bill = "Bill for customer " + customerID + "is: \n" + bill;
+			}
 		}
-		else{
-			bill = "Bill for customer " + customerID + "is: \n" + bill;
+		else
+		{
+			bill = "Customer " + customerID + " doesn't exist";
 		}
 		return bill;
 	}
@@ -395,6 +525,7 @@ public class Middleware implements IResourceManager
 	public int queryFlightPrice(int xid, int flightNum) throws RemoteException,TransactionAbortedException,InvalidTransactionException
 	{
 		Trace.info("Middleware::queryFlightPrice(" + xid + ", " + flightNum + ") called");
+		checkExistence(xid);
 		int price = flight_Manager.queryFlightPrice(xid, flightNum);
 		return price;
 	}
@@ -403,6 +534,7 @@ public class Middleware implements IResourceManager
 	public int queryCarsPrice(int xid, String location) throws RemoteException,TransactionAbortedException,InvalidTransactionException
 	{
 		Trace.info("Middleware::queryCarsPrice(" + xid + ", " + location + ") called");
+		checkExistence(xid);
 		int price = car_Manager.queryCarsPrice(xid, location);
 		return price;
 	}
@@ -411,6 +543,7 @@ public class Middleware implements IResourceManager
 	public int queryRoomsPrice(int xid, String location) throws RemoteException,TransactionAbortedException,InvalidTransactionException
 	{
 		Trace.info("Middleware::queryRoomsPrice(" + xid + ", " + location + ") called");
+		checkExistence(xid);
 		int price = room_Manager.queryRoomsPrice(xid, location);
 		return price;
 	}
@@ -419,7 +552,6 @@ public class Middleware implements IResourceManager
 	public boolean reserveFlight(int xid, int customerID, int flightNum) throws RemoteException,TransactionAbortedException,InvalidTransactionException
 	{
 		Trace.info("Middleware::reserveFlight(" + xid + ", " + customerID + ", " + flightNum + ") called");
-		
 		checkExistence(xid);
 		associateManager(xid, "flight");
 		
