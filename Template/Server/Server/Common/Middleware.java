@@ -20,7 +20,7 @@ public class Middleware implements IResourceManager
 	protected Integer highestXid;
 	protected static ArrayList<Integer> abortedT = new ArrayList<Integer>();
 	protected static HashMap<Integer, String> transactionInfo;
-	private static int CONNECTION_TIMEOUT = 60000;
+	private static int CONNECTION_TIMEOUT = 120000;
 	//manage transaction timeout 
 	private ConcurrentHashMap<Integer, Thread> timeTable = new ConcurrentHashMap<Integer, Thread>();
 	
@@ -590,6 +590,7 @@ public class Middleware implements IResourceManager
 		String[] flightNums = new String[flightNumbers.size()]; 
 		flightNums = (String[]) flightNumbers.toArray(flightNums); 
 
+
 		checkExistence(xid);
 		associateManager(xid, "flight");
 
@@ -607,7 +608,7 @@ public class Middleware implements IResourceManager
 			else 
 			{
 				System.out.println("Flight could not be reserved");
-				//need to abort 
+				unbundle(xid,customerId,flightNumbers,location,car,room,numItemReserved);
 				return false;
 			}
         }
@@ -627,7 +628,7 @@ public class Middleware implements IResourceManager
 			else
 			{
 				System.out.println("Car could not be reserved");
-				//need to abort
+				unbundle(xid,customerId,flightNumbers,location,car,room,numItemReserved);
 				return false;
 			}
         }
@@ -645,11 +646,103 @@ public class Middleware implements IResourceManager
 			else 
 			{
 				System.out.println("Room could not be reserved");
-				//need to abort
+				unbundle(xid,customerId,flightNumbers,location,car,room,numItemReserved);
 				return false;
 			}
         }
 		return true;
+	}
+
+
+	private void unbundle(int xid, int customerId, Vector<String> flightNumbers, String location, boolean car, boolean room, int numItemReserved) throws RemoteException,TransactionAbortedException,InvalidTransactionException
+	{
+		System.out.println("Middleware::Undo bundle because one of more of reservation in bundle has failed");
+		String[] flightNums = new String[flightNumbers.size()]; 
+		flightNums = (String[]) flightNumbers.toArray(flightNums); 
+		checkExistence(xid);
+
+		if (numItemReserved > flightNums.length)
+		{
+			for (int i = 0; i < flightNums.length; i++)  
+	        { 
+	        	int flightNum = Integer.parseInt(flightNums[i]);
+	        	Trace.info("Middleware::unreserveFlight(" + xid + ", " + customerId + ", " + flightNum + ") in bundle");
+
+	        	if (this.unreserveFlight(xid, customerId, flightNum)) 
+	        	{
+	        		System.out.println("Flight unReserved");
+				} 
+				else 
+				{
+					System.out.println("unknown reason why Flight can't be unReserved");
+				}
+	        }
+
+	        numItemReserved = numItemReserved - flightNums.length;
+
+	        if (numItemReserved >= 1)
+	        {
+	        	Trace.info("Middleware::unreserveCar(" + xid + ", " + customerId + ", " + location + ") in bundle");
+				if(this.unreserveCar(xid, customerId, location))
+				{
+					System.out.println("Car unReserved");
+				} 
+				else
+				{
+					System.out.println("unknown reason why Car can't be unReserved");
+				}
+
+	        }
+
+	        numItemReserved--;
+
+	        if (numItemReserved >= 1)
+	        {
+	        	Trace.info("Middleware::unreserveRoom(" + xid + ", " + customerId + ", " + location + ") in bundle");
+	        	if(this.unreserveRoom(xid, customerId, location)) 
+	        	{
+	        		System.out.println("Room unReserved");
+				} 
+				else 
+				{
+					System.out.println("unknown reason why Room could not be reserved");
+				}
+	        }
+
+		}
+		else 
+		{
+			for (int i = 0; i < numItemReserved; i++)  
+	        { 
+	        	int flightNum = Integer.parseInt(flightNums[i]);
+	        	Trace.info("Middleware::unreserveFlight(" + xid + ", " + customerId + ", " + flightNum + ") in bundle");
+
+	        	if (this.unreserveFlight(xid, customerId, flightNum)) 
+	        	{
+	        		System.out.println("Flight unReserved");
+				} 
+				else 
+				{
+					System.out.println("unknown reason why Flight can't be unReserved");
+				}
+	        }
+		}
+	}
+
+
+	public boolean unreserveFlight(int xid, int customerID, int flightNum) throws RemoteException,TransactionAbortedException, InvalidTransactionException
+	{
+		return flight_Manager.unreserveFlight(xid, customerID, flightNum);
+	}
+
+	public boolean unreserveCar(int xid, int customerID, String location) throws RemoteException,TransactionAbortedException, InvalidTransactionException
+	{
+		return car_Manager.unreserveCar(xid, customerID, location);
+	}
+
+	public boolean unreserveRoom(int xid, int customerID, String location) throws RemoteException,TransactionAbortedException, InvalidTransactionException
+	{
+		return room_Manager.unreserveRoom(xid, customerID, location);
 	}
 
 	public String getName() throws RemoteException

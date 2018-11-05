@@ -15,7 +15,7 @@ public class ClientSimulator
 	private  String s_rmiPrefix = "group9";
 
 	private  int numClients = 10;
-    private  int queriesPerSecond = 5;
+    private  int queriesPerSecond = 2;
 	private  AutomatedClient clients[] = new AutomatedClient[numClients];
 
 	private int averageSum;

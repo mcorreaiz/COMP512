@@ -264,7 +264,7 @@ public class ResourceManager implements IResourceManager
 	}
 
 	// Reserve an item
-	protected boolean unreserveItem(int xid, int customerID, String key, String location, int oldPrice) throws TransactionAbortedException, InvalidTransactionException
+	protected boolean unreserveItem(int xid, int customerID, String key, String location) throws TransactionAbortedException, InvalidTransactionException
 	{
 		Trace.info("RM::unreserveItem(" + xid + ", customer=" + customerID + ", " + key + ", " + location + ") called" );
 		// Read customer object if it exists (and read lock it)
@@ -284,7 +284,7 @@ public class ResourceManager implements IResourceManager
 		}
 		else
 		{
-			customer.unreserve(key, location, oldPrice);
+			customer.unreserve(key, location);
 			writeData(xid, customer.getKey(), customer);
 
 			// Increase the number of available items in the storage
@@ -547,37 +547,43 @@ public class ResourceManager implements IResourceManager
 	// Adds flight reservation to this customer
 	public boolean reserveFlight(int xid, int customerID, int flightNum) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
+		Trace.info("RM::reserveFlight(" + xid + ", " + customerID + ", " + flightNum + ", " + ") called");
 		return reserveItem(xid, customerID, Flight.getKey(flightNum), String.valueOf(flightNum));
 	}
 
 	// Adds car reservation to this customer
 	public boolean reserveCar(int xid, int customerID, String location) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
+		Trace.info("RM::reserveCar(" + xid + ", " + customerID + ", " + location + ") called");
 		return reserveItem(xid, customerID, Car.getKey(location), location);
 	}
 
 	// Adds room reservation to this customer
 	public boolean reserveRoom(int xid, int customerID, String location) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
+		Trace.info("RM::reserveRoom(" + xid + ", " + customerID + ", " + location + ") called");
 		return reserveItem(xid, customerID, Room.getKey(location), location);
 	}
 
 	// Adds flight reservation to this customer
-	public boolean unreserveFlight(int xid, int customerID, int flightNum, int oldPrice) throws RemoteException,TransactionAbortedException, InvalidTransactionException
+	public boolean unreserveFlight(int xid, int customerID, int flightNum) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
-		return unreserveItem(xid, customerID, Flight.getKey(flightNum), String.valueOf(flightNum), oldPrice);
+		Trace.info("RM::unreserveFlight(" + xid + ", " + customerID + ", " + flightNum + ", " + ") called");
+		return unreserveItem(xid, customerID, Flight.getKey(flightNum), String.valueOf(flightNum));
 	}
 
 	// Adds car reservation to this customer
-	public boolean unreserveCar(int xid, int customerID, String location, int oldPrice) throws RemoteException,TransactionAbortedException, InvalidTransactionException
-	{
-		return unreserveItem(xid, customerID, Car.getKey(location), location, oldPrice);
+	public boolean unreserveCar(int xid, int customerID, String location) throws RemoteException,TransactionAbortedException, InvalidTransactionException
+	{		
+		Trace.info("RM::unreserveCar(" + xid + ", " + customerID + ", " + location + ") called");
+		return unreserveItem(xid, customerID, Car.getKey(location), location);
 	}
 
 	// Adds room reservation to this customer
-	public boolean unreserveRoom(int xid, int customerID, String location, int oldPrice) throws RemoteException,TransactionAbortedException, InvalidTransactionException
+	public boolean unreserveRoom(int xid, int customerID, String location) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
-		return unreserveItem(xid, customerID, Room.getKey(location), location, oldPrice);
+		Trace.info("RM::unreserveRoom(" + xid + ", " + customerID + ", " + location + ") called");
+		return unreserveItem(xid, customerID, Room.getKey(location), location);
 	}
 
 	// Reserve bundle

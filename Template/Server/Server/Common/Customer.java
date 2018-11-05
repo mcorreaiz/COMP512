@@ -46,7 +46,7 @@ public class Customer extends RMItem
 		m_reservations.put(reservedItem.getKey(), reservedItem);
 	}
 
-	public void unreserve(String key, String location, int oldPrice)
+	public void unreserve(String key, String location)
 	{
 		ReservedItem reservedItem = getReservedItem(key);
 		if (reservedItem == null)
@@ -58,8 +58,8 @@ public class Customer extends RMItem
 		else
 		{
 			reservedItem.setCount(reservedItem.getCount() - 1);
-			// NOTE: latest price overrides existing price
-			reservedItem.setPrice(oldPrice);
+			// // NOTE: latest price overrides existing price
+			// reservedItem.setPrice(oldPrice);
 		}
 		m_reservations.put(reservedItem.getKey(), reservedItem);
 	}

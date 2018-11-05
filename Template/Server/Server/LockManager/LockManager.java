@@ -67,9 +67,9 @@ public class LockManager
 							//convert read lock to write lock
 							//remove the old locks
 							TransactionLockObject xLockNeo = (TransactionLockObject)xLockObject.clone();
-							xLockNeo.setLockType(TransactionLockObject.LockType.LOCK_READ);
+							xLockNeo.setLockType(TransactionLockObject.LockType.LOCK_WRITE);
 							DataLockObject dataLockNeo = (DataLockObject)dataLockObject.clone();
-							dataLockNeo.setLockType(TransactionLockObject.LockType.LOCK_READ);
+							dataLockNeo.setLockType(TransactionLockObject.LockType.LOCK_WRITE);
 							this.lockTable.remove(xLockObject);
 							this.lockTable.remove(dataLockObject);
 

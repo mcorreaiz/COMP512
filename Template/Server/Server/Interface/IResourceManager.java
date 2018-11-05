@@ -224,7 +224,23 @@ public interface IResourceManager extends Remote
      */
     public boolean reserveRoom(int id, int customerID, String location)
 	throws RemoteException, InvalidTransactionException, TransactionAbortedException;;
-	
+
+
+
+	// remove reservation for flight
+	public boolean unreserveFlight(int xid, int customerID, int flightNum) 
+	throws RemoteException,TransactionAbortedException, InvalidTransactionException;;
+
+
+	// remove reservation for car
+	public boolean unreserveCar(int xid, int customerID, String location) 
+	throws RemoteException,TransactionAbortedException, InvalidTransactionException;;
+
+
+	// remove reservation for room
+	public boolean unreserveRoom(int xid, int customerID, String location) 
+	throws RemoteException,TransactionAbortedException, InvalidTransactionException;;
+
     /**
      * Reserve a bundle for the trip.
      *
