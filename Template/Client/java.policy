@@ -1,3 +1,7 @@
+<<<<<<< HEAD
 grant codebase "file:/media/matias/Documents/Universidad/VIII-Semestre/COMP512/Project/Template/Client/" {
+=======
+grant codebase "file:/home/2016/shuang43/M2/COMP512/Template/Client/" {
+>>>>>>> 31412ac3f0331441f6a225d47e1f0eb683208d1c
 	permission java.security.AllPermission;
 };

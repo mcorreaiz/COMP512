@@ -74,6 +74,7 @@ public class ResourceManager implements IResourceManager
 	public boolean commit(int transactionId) throws RemoteException, TransactionAbortedException, InvalidTransactionException
 	{
 		// Delete transaction from log
+		Trace.info("RM::commit(" + transactionId + ") called");
 		removeImage(transactionId);
 		return lockManager.UnlockAll(transactionId);
 	}
@@ -81,7 +82,7 @@ public class ResourceManager implements IResourceManager
 	public void abort(int transactionId) throws RemoteException, InvalidTransactionException
 	{
 		// Undo all ops.
-
+		Trace.info("RM::abort(" + transactionId + ") called");
 		RMHashMap image = readImage(transactionId);
 		synchronized(m_data) {
 			for (String key : image.keySet()) {
@@ -95,6 +96,20 @@ public class ResourceManager implements IResourceManager
 
 	public boolean shutdown() throws RemoteException
 	{
+		Trace.info("RM::shutdown() called");
+		new Thread(new Runnable() {
+			@Override
+			public void run() {
+				try{
+					System.out.println("Shutdown in 2 seconds");
+					Thread.sleep(2000);
+					System.exit(0);
+				}
+				catch(InterruptedException e){
+					System.exit(0);
+				}
+			}   
+		}).start();
 		return true;
 	}
 

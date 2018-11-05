@@ -113,13 +113,14 @@ public abstract class Client
 				}
 				catch (Exception e) {    
 					System.err.println((char)27 + "[31;1mClient exception: " + (char)27 + "[0mUncaught exception");
-					e.getClass().getSimpleName();
+					e.getClass().getSimpleName();;
+					break;
 				}
 			}
 			case Abort:
 			{
+				checkArgumentsCount(2, arguments.size());
 				try {
-					checkArgumentsCount(2, arguments.size());
 					System.out.println("Abort transaction [xid=" + arguments.elementAt(1) + "]");
 					int xid = toInt(arguments.elementAt(1));
 					m_resourceManager.abort(xid);
@@ -127,15 +128,23 @@ public abstract class Client
 				}
 				catch (Exception e) {    
 					System.err.println((char)27 + "[31;1mClient exception: " + (char)27 + "[0mUncaught exception");
-					e.getClass().getSimpleName();
+					e.getClass().getSimpleName();;
+					break;
 				}
 			}
 			case Shutdown:
 			{
 				checkArgumentsCount(1, arguments.size());
 				System.out.println("Gracefully shutdown all servers ");
-				m_resourceManager.shutdown();
-				break;
+				try {
+					m_resourceManager.shutdown();
+					break;
+				}
+				catch(Exception e) {    
+					System.err.println((char)27 + "[31;1mClient exception: " + (char)27 + "[0mUncaught exception");
+					e.getClass().getSimpleName();;
+					break;
+				}
 			}
 			case AddFlight: {
 				checkArgumentsCount(5, arguments.size());

@@ -13,8 +13,8 @@ RMIInterface.jar: Server/Interface/*.java
 	javac Server/Interface/*.java
 	jar cvf RMIInterface.jar Server/Interface/*.class
 
-compile-server-rmi: Server/RMI/*.java Server/Interface/*.java Server/Common/*.java
-	javac Server/RMI/*.java Server/Interface/*.java Server/Common/*.java
+compile-server-rmi: Server/RMI/*.java Server/Interface/*.java Server/LockManager/*.java Server/Common/*.java 
+	javac Server/RMI/*.java Server/Interface/*.java Server/LockManager/*.java Server/Common/*.java
 
 clean:
 	rm -f Server/Interface/*.class Server/Common/*.class Server/RMI/*.class
