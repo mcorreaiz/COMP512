@@ -7,21 +7,26 @@ import java.io.*;
 
 public class ClientSimulator
 {
-	private  String s_serverHost = "localhost";
-	private  int s_serverPort = 1099;
-	private  String s_serverName = "Middleware";
+	protected static String s_serverHost = "localhost";
+	protected static int s_serverPort = 1099;
+	protected static String s_serverName = "Middleware";
 
 	//TODO: REPLACE 'ALEX' WITH YOUR GROUP NUMBER TO COMPILE
-	private  String s_rmiPrefix = "group9";
+	protected static String s_rmiPrefix = "group9";
 
-	private  int numClients = 10;
-    private  int queriesPerSecond = 2;
-	private  AutomatedClient clients[] = new AutomatedClient[numClients];
+	protected static int numClients = 10;
+    protected static int queriesPerSecond = 2;
+	protected static AutomatedClient clients[] = new AutomatedClient[numClients];
 
-	private int averageSum;
+	//protected static int averageSum;
     
-    public  void main(String args[])
+    public static void main(String args[])
 	{	
+		if (args.length == 0)
+		{
+			System.out.println("./run_automate serverHost #client #queriesPerSecond");
+		}
+
 		if (args.length > 0)
 		{
 			s_serverHost = args[0];
@@ -50,8 +55,8 @@ public class ClientSimulator
             // Get a reference to the RMIRegister
             try {
                 RMIClient client = new RMIClient();
-                client.connectServer();
-				AutomatedClient ac = new AutomatedClient(this, client.m_resourceManager, queriesPerSecond);
+                client.connectServer(s_serverHost, s_serverPort, s_serverName);
+				AutomatedClient ac = new AutomatedClient(client.m_resourceManager, queriesPerSecond);
 				clients[i] = ac;
 				ac.start();
             } 
@@ -63,7 +68,7 @@ public class ClientSimulator
         }
 	}
 	
-	public void threadDone(long average) {
-		averageSum += average;
-	}
+	// public void threadDone(long average) {
+	// 	averageSum += average;
+	// }
 }

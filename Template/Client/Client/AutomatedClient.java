@@ -10,12 +10,12 @@ public class AutomatedClient extends Thread
     private int numQueries = 1000;
     private int queriesPerSecond = 2;
     public long timeSum = 0;
-    ClientSimulator parent = null;
+    //ClientSimulator parent = null;
 	IResourceManager resourceManager = null;
 
-    public AutomatedClient(ClientSimulator cs, IResourceManager rm, int qps) {
+    public AutomatedClient(IResourceManager rm, int qps) {
         super();
-        parent = cs;
+        //parent = cs;
         resourceManager = rm;
         queriesPerSecond = qps;
     }
@@ -41,7 +41,8 @@ public class AutomatedClient extends Thread
                     Thread.sleep(toSleep);
                 }
                 long average = timeSum / numQueries;
-                parent.threadDone(average);
+                System.out.println(Long.toString(average));
+                // parent.threadDone(average);
             }
 
         }
