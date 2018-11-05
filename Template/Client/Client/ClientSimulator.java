@@ -7,17 +7,20 @@ import java.io.*;
 
 public class ClientSimulator
 {
-	private static String s_serverHost = "localhost";
-	private static int s_serverPort = 1099;
-	private static String s_serverName = "Server";
+	private  String s_serverHost = "localhost";
+	private  int s_serverPort = 1099;
+	private  String s_serverName = "Middleware";
 
 	//TODO: REPLACE 'ALEX' WITH YOUR GROUP NUMBER TO COMPILE
-	private static String s_rmiPrefix = "group9";
+	private  String s_rmiPrefix = "group9";
 
-	private static int numClients = 10;
-	private static AutomatedClient clients[] = new AutomatedClient[numClients];
+	private  int numClients = 10;
+    private  int queriesPerSecond = 5;
+	private  AutomatedClient clients[] = new AutomatedClient[numClients];
+
+	private int averageSum;
     
-    public static void main(String args[])
+    public  void main(String args[])
 	{	
 		if (args.length > 0)
 		{
@@ -25,11 +28,15 @@ public class ClientSimulator
 		}
 		if (args.length > 1)
 		{
-			s_serverName = args[1];
+			numClients = Integer.parseInt(args[1]);
 		}
 		if (args.length > 2)
 		{
-			System.err.println((char)27 + "[31;1mAutomatedClient exception: " + (char)27 + "[0mUsage: java client.AutomatedClient [server_hostname [server_rmiobject]]");
+			queriesPerSecond = Integer.parseInt(args[2]);
+		}
+		if (args.length > 3)
+		{
+			System.err.println((char)27 + "[31;1mAutomatedClient exception: " + (char)27 + "[0mUsage: java client.AutomatedClient [server_hostname]");
 			System.exit(1);
 		}
 
@@ -44,7 +51,7 @@ public class ClientSimulator
             try {
                 RMIClient client = new RMIClient();
                 client.connectServer();
-				AutomatedClient ac = new AutomatedClient(client.m_resourceManager);
+				AutomatedClient ac = new AutomatedClient(this, client.m_resourceManager, queriesPerSecond);
 				clients[i] = ac;
 				ac.start();
             } 
@@ -54,5 +61,9 @@ public class ClientSimulator
                 System.exit(1);
 			}
         }
-    }
+	}
+	
+	public void threadDone(long average) {
+		averageSum += average;
+	}
 }
