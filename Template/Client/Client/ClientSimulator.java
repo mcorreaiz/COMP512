@@ -14,9 +14,10 @@ public class ClientSimulator
 	//TODO: REPLACE 'ALEX' WITH YOUR GROUP NUMBER TO COMPILE
 	protected static String s_rmiPrefix = "group9";
 
-	protected static int numClients = 10;
-    protected static int queriesPerSecond = 2;
-	protected static AutomatedClient clients[] = new AutomatedClient[numClients];
+	protected static int numClients = 0;
+    protected static int queriesPerSecond = 0;
+    protected static int numQ = 0;
+	protected static AutomatedClient clients[];
 
 	//protected static int averageSum;
     
@@ -24,7 +25,7 @@ public class ClientSimulator
 	{	
 		if (args.length == 0)
 		{
-			System.out.println("./run_automate serverHost #client #queriesPerSecond");
+			System.out.println("./run_automate serverHost #client #QueryPerClient #queriesPerSecond");
 		}
 
 		if (args.length > 0)
@@ -34,16 +35,24 @@ public class ClientSimulator
 		if (args.length > 1)
 		{
 			numClients = Integer.parseInt(args[1]);
+			clients = new AutomatedClient[numClients];
 		}
 		if (args.length > 2)
 		{
-			queriesPerSecond = Integer.parseInt(args[2]);
+			numQ = Integer.parseInt(args[2]);
 		}
 		if (args.length > 3)
+		{
+			queriesPerSecond = Integer.parseInt(args[3]);
+		}
+		if (args.length > 4)
 		{
 			System.err.println((char)27 + "[31;1mAutomatedClient exception: " + (char)27 + "[0mUsage: java client.AutomatedClient [server_hostname]");
 			System.exit(1);
 		}
+
+		System.out.println("Ready to run " + numClients + " clients for " + queriesPerSecond + " queries per second");
+		System.out.println( "and  total number of queries are " + numQ);
 
 		// Set the security policy
 		if (System.getSecurityManager() == null)
@@ -56,7 +65,7 @@ public class ClientSimulator
             try {
                 RMIClient client = new RMIClient();
                 client.connectServer(s_serverHost, s_serverPort, s_serverName);
-				AutomatedClient ac = new AutomatedClient(client.m_resourceManager, queriesPerSecond);
+				AutomatedClient ac = new AutomatedClient(client.m_resourceManager, numQ, queriesPerSecond);
 				clients[i] = ac;
 				ac.start();
             } 

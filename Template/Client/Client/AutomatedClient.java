@@ -7,16 +7,17 @@ import java.io.*;
 
 public class AutomatedClient extends Thread
 {
-    private int numQueries = 1000;
-    private int queriesPerSecond = 2;
+    private int numQueries = 0;
+    private int queriesPerSecond = 0;
     public long timeSum = 0;
     //ClientSimulator parent = null;
 	IResourceManager resourceManager = null;
 
-    public AutomatedClient(IResourceManager rm, int qps) {
+    public AutomatedClient(IResourceManager rm,int numQ, int qps) {
         super();
         //parent = cs;
         resourceManager = rm;
+        numQueries = numQ;
         queriesPerSecond = qps;
     }
 
@@ -30,8 +31,10 @@ public class AutomatedClient extends Thread
                 startTime = System.nanoTime();
             
                 xid = resourceManager.start();
-                resourceManager.reserveFlight(xid, 1, 9090);
-                resourceManager.commit(xid);
+                resourceManager.newCustomer(xid,xid);
+                resourceManager.addFlight(xid,xid,100,100);
+                resourceManager.reserveFlight(xid, xid, xid);
+                resourceManager.abort(xid);
 
                 elapsedTime = System.nanoTime() - startTime;
                 timeSum += elapsedTime;
