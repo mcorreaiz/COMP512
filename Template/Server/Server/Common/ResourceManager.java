@@ -250,6 +250,7 @@ public class ResourceManager implements IResourceManager
 		}
 		else
 		{
+			writeImage(xid, key, customer);
 			customer.reserve(key, location, item.getPrice());
 			writeData(xid, customer.getKey(), customer);
 

@@ -34,19 +34,21 @@ public class AutomatedClient extends Thread
                 resourceManager.newCustomer(xid,xid);
                 resourceManager.addFlight(xid,xid,100,100);
                 resourceManager.reserveFlight(xid, xid, xid);
-                resourceManager.abort(xid);
+                resourceManager.commit(xid);
 
                 elapsedTime = System.nanoTime() - startTime;
                 timeSum += elapsedTime;
                 
-                toSleep = (1000 / queriesPerSecond) + ((int)(Math.random() * 100) - 50) - elapsedTime;
+                toSleep = 1000 / queriesPerSecond + (long)(Math.random() * 10) - 5 - elapsedTime / 1000000;
+                System.out.println("I am sleeping for "+ Long.toString(toSleep));
                 if (toSleep > 0) {
-                    Thread.sleep(toSleep);
+                    Thread.sleep((int)toSleep);
                 }
-                long average = timeSum / numQueries;
-                System.out.println(Long.toString(average));
-                // parent.threadDone(average);
             }
+            long average = timeSum / numQueries / 1000000;
+            System.out.println("My name is thread number: "+ Long.toString(Thread.currentThread().getId()));
+            System.out.println(Long.toString(average));
+                
 
         }
         catch (Exception e) {
