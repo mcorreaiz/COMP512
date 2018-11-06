@@ -9,18 +9,20 @@ public class AutomatedClient extends Thread
 {
     private int numQueries = 0;
     private double queriesPerSecond = 0;
+    private int numClients = 0;
     private long timeSum = 0;
     private String tid = "";
     public long timePerQuery = 0;
     //ClientSimulator parent = null;
 	IResourceManager resourceManager = null;
 
-    public AutomatedClient(IResourceManager rm,int numQ, double qps) {
+    public AutomatedClient(IResourceManager rm,int numQ, double qps, int numC) {
         super();
         //parent = cs;
         resourceManager = rm;
         numQueries = numQ;
         queriesPerSecond = qps;
+        numClients = numC;
     }
 
     public void run() {
@@ -45,12 +47,12 @@ public class AutomatedClient extends Thread
                     timeSum += elapsedTime;
                     
                     toSleep = (long)(1000 / queriesPerSecond) - elapsedTime;
-                    print("I am sleeping for "+ Long.toString(toSleep) + " ms");
-                    if (toSleep > 0) {
-                        Thread.sleep((int)(toSleep * ((100 + randomWithRange(-5, 5)) / 100))); // +- 5%
+                    if (toSleep > 0 && numClients > 1) {
+                        print("I am sleeping for "+ Long.toString(toSleep) + " ms");
+                        Thread.sleep((int)(toSleep * ((100 + randomWithRange(-5, 5)) / (float)100))); // +- 5%
                     }
                 } else {
-                    Thread.sleep(300);
+                    Thread.sleep(100);
                 }
             }
             timePerQuery = timeSum / numQueries;

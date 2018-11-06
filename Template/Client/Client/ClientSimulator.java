@@ -62,6 +62,7 @@ public class ClientSimulator
 
 		try {
 			BufferedWriter writer = new BufferedWriter(new FileWriter("performance.txt"));
+			// writer.write("Number of Clients,Total Tx,Avg. Response Time\n");
 			writer.write("Number of Clients,Tx per Second,Avg. Response Time\n");
 			writer.close();
 		}
@@ -72,11 +73,13 @@ public class ClientSimulator
 		}
 
 		int clientNumbers[] = {2, 4, 8, 16};
-		int qps[] = {32, 64, 128, 256, 512};
+		int qps[] = {1024, 2048, 4096, 8192};
+		// int queries[] = {50, 100, 200, 400, 600, 800};
 
 		if (numClients == 0) {
-			for (int i = 0; i < 4; i++) {
-				for (int j = 0; j < 5; j++) {
+			for (int i = 0; i < 5; i++) {
+				for (int j = 0; j < 4; j++) {
+					//runTests(1, queries[j]*10, queries[j]*10);
 					runTests(clientNumbers[i], qps[j]*10, qps[j]);
 				}
 			}
@@ -98,7 +101,7 @@ public class ClientSimulator
             try {
                 RMIClient client = new RMIClient();
                 client.connectServer(s_serverHost, s_serverPort, s_serverName);
-				AutomatedClient ac = new AutomatedClient(client.m_resourceManager, numQueries / numClients, queriesPerSecond / (double)numClients);
+				AutomatedClient ac = new AutomatedClient(client.m_resourceManager, numQueries / numClients, queriesPerSecond / (double)numClients, numClients);
 				clients[i] = ac;
             } 
             catch (Exception e) {    
@@ -120,7 +123,7 @@ public class ClientSimulator
         }
         try {
 			while (clients[numClients-1].isAlive()) {}
-			Thread.sleep(1000);
+			Thread.sleep(2000);
 			writeFile(Long.toString(getAverage()));
 			// for (int i=0; i < numClients; i++) { // Get measurements
 			// 	// Get a reference to the RMIRegister

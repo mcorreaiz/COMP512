@@ -1,2 +1,1 @@
 Number of Clients,Tx per Second,Avg. Response Time
-16,512,80
