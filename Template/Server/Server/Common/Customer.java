@@ -57,9 +57,14 @@ public class Customer extends RMItem
 		}
 		else
 		{
-			reservedItem.setCount(reservedItem.getCount() - 1);
-			// // NOTE: latest price overrides existing price
-			// reservedItem.setPrice(oldPrice);
+			if (reservedItem.getCount() == 1) {
+				// This bundle was first reservation, so item should be deleted
+				m_reservations.remove(key);
+				return;
+			} else {
+				reservedItem.setCount(reservedItem.getCount() - 1);
+				// reservedItem.setPrice(oldPrice);
+			}
 		}
 		m_reservations.put(reservedItem.getKey(), reservedItem);
 	}

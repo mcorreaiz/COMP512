@@ -132,26 +132,27 @@ public class Middleware implements IResourceManager
 		Trace.info("Middleware::commit(" + transactionId + ") called");
 		checkExistence(transactionId);
 		String existing = readTransaction(transactionId);
+		boolean success = true;
 
 		if (existing.indexOf("car") >= 0)
 		{
 			Trace.info("Middleware asks nicely that car Manager should commit(" + transactionId + ")");
-			car_Manager.commit(transactionId);
+			success = success && car_Manager.commit(transactionId);
 		}
 		if (existing.indexOf("flight") >= 0)
 		{
 			Trace.info("Middleware asks nicely that flight Manager should commit(" + transactionId + ")");			
-			flight_Manager.commit(transactionId);
+			success = success && flight_Manager.commit(transactionId);
 		}
 		if (existing.indexOf("room") >= 0)
 		{
 			Trace.info("Middleware asks nicely that room Manager should commit(" + transactionId + ")");
-			room_Manager.commit(transactionId);
+			success = success && room_Manager.commit(transactionId);
 		}
 		removeTransaction(transactionId);
 		killTimer(transactionId);
 		removeTimer(transactionId);
-		return true;
+		return success;
 	}
 
 	public void abort(int transactionId) throws RemoteException,InvalidTransactionException
@@ -306,12 +307,20 @@ public class Middleware implements IResourceManager
 
 		checkExistence(xid);
 		associateManager(xid,"car");
-		if (car_Manager.addCars(xid, location, count, price)) {
+		try
+		{
+			if (car_Manager.addCars(xid, location, count, price)) {
 					System.out.println("Cars added");
 				} else {
 					System.out.println("Cars could not be added");
 					success = false;
 				}
+		}
+		//caught a deadlock
+		catch (TransactionAbortedException e)
+		{
+			abort(xid);
+		}
 		return success;
 	}
 
@@ -324,12 +333,18 @@ public class Middleware implements IResourceManager
 
 		checkExistence(xid);
 		associateManager(xid,"flight");
-		if (flight_Manager.addFlight(xid, flightNum, flightSeats, flightPrice)) {
+		try
+		{
+			if (flight_Manager.addFlight(xid, flightNum, flightSeats, flightPrice)) {
 					System.out.println("Flight added");
 				} else {
 					System.out.println("Flight could not be added");
 					success = false;
 				}
+		}
+		catch (TransactionAbortedException e){
+			abort(xid);
+		}
 		return success;
 	}
 
@@ -341,13 +356,20 @@ public class Middleware implements IResourceManager
 		Trace.info("Middleware::addRooms(" + xid + ", " + location + ", " + count + ", $" + price + ") called");
 		checkExistence(xid);
 		associateManager(xid, "room");
-
-		if (room_Manager.addRooms(xid, location, count, price)) {
+		boolean success = true;
+		try
+		{
+			if (room_Manager.addRooms(xid, location, count, price)) {
 					System.out.println("Rooms added");
 				} else {
 					System.out.println("Rooms could not be added");
+					success = false;
 				}
-		return true;
+		}
+		catch (TransactionAbortedException e){
+			abort(xid);
+		}
+		return success;
 	}
 
 	public int newCustomer(int xid) throws RemoteException,TransactionAbortedException,InvalidTransactionException
@@ -359,11 +381,16 @@ public class Middleware implements IResourceManager
 		String.valueOf(Math.round(Math.random() * 100 + 1)));
 
 		CIDs.add(cid);
-		// create new customers on other RMs as well
-		car_Manager.newCustomer(xid, cid);
-		room_Manager.newCustomer(xid, cid);
-		flight_Manager.newCustomer(xid, cid);
-		// add cid to customer list
+		try
+		{
+			// create new customers on other RMs as well
+			car_Manager.newCustomer(xid, cid);
+			room_Manager.newCustomer(xid, cid);
+			flight_Manager.newCustomer(xid, cid);
+		}
+		catch (TransactionAbortedException e){
+			abort(xid);
+		}
 		Trace.info("RM::newCustomer(" + cid + ") returns ID=" + cid);
 		return cid;
 	}
@@ -378,9 +405,16 @@ public class Middleware implements IResourceManager
 		associateManager(xid, "flight");
 		associateManager(xid, "room");
 
-		success = success && (car_Manager.newCustomer(xid, customerID));
-		success = success && (room_Manager.newCustomer(xid, customerID));
-		success = success && (flight_Manager.newCustomer(xid, customerID));
+		try
+		{
+			success = success && (car_Manager.newCustomer(xid, customerID));
+			success = success && (room_Manager.newCustomer(xid, customerID));
+			success = success && (flight_Manager.newCustomer(xid, customerID));
+		}
+		catch (TransactionAbortedException e)
+		{
+			abort(xid);
+		}
 		
 		if (success)
 		{
@@ -400,26 +434,45 @@ public class Middleware implements IResourceManager
 		Trace.info("Middleware::deleteFlight(" + xid + ", " + flightNum + ") called");
 		checkExistence(xid);
 		associateManager(xid, "flight");
-		if (flight_Manager.deleteFlight(xid, flightNum)) {
+		boolean success = true;
+
+		try
+		{
+			if (flight_Manager.deleteFlight(xid, flightNum)) {
 					System.out.println("Flight Deleted");
 				} else {
 					System.out.println("Flight could not be deleted");
+					success = false;
 				}
-		return true;
+
+		}
+		catch (TransactionAbortedException e){
+			abort(xid);
+		}
+		return success;
 	}
 
 	// Delete cars at a location
 	public boolean deleteCars(int xid, String location) throws RemoteException,TransactionAbortedException,InvalidTransactionException
 	{
 		Trace.info("Middleware::deleteCars(" + xid + ", " + location + ") called");
+		boolean success = true; 
 		checkExistence(xid);
 		associateManager(xid, "car");
-		if (car_Manager.deleteCars(xid, location)) {
+
+		try
+		{
+			if (car_Manager.deleteCars(xid, location)) {
 					System.out.println("Cars Deleted");
 				} else {
 					System.out.println("Cars could not be deleted");
+					success = false;
 				}
-		return true;
+		}
+		catch (TransactionAbortedException e){
+			abort(xid);
+		}
+		return success;
 	}
 
 	// Delete rooms at a location
@@ -428,12 +481,21 @@ public class Middleware implements IResourceManager
 		Trace.info("Middleware::deleteRooms(" + xid + ", " + location + ") called");
 		checkExistence(xid);
 		associateManager(xid, "room");
-		if (room_Manager.deleteRooms(xid, location)) {
+		boolean success = true;
+
+		try
+		{
+			if (room_Manager.deleteRooms(xid, location)) {
 					System.out.println("Rooms Deleted");
 				} else {
 					System.out.println("Rooms could not be deleted");
+					success = false;
 				}
-		return true;
+		}
+		catch (TransactionAbortedException e){
+			abort(xid);
+		}
+		return success;
 	}
 
 	public boolean deleteCustomer(int xid, int customerID) throws RemoteException,TransactionAbortedException,InvalidTransactionException
@@ -448,9 +510,16 @@ public class Middleware implements IResourceManager
 			associateManager(xid, "flight");
 			associateManager(xid, "room");
 
-			success = success && (car_Manager.deleteCustomer(xid, customerID));
-			success = success && (room_Manager.deleteCustomer(xid, customerID));
-			success = success && (flight_Manager.deleteCustomer(xid, customerID));
+			try
+			{
+
+				success = success && (car_Manager.deleteCustomer(xid, customerID));
+				success = success && (room_Manager.deleteCustomer(xid, customerID));
+				success = success && (flight_Manager.deleteCustomer(xid, customerID));
+			}
+			catch (TransactionAbortedException e){
+				abort(xid);
+			}
 
 			if (success) 
 			{
@@ -475,7 +544,14 @@ public class Middleware implements IResourceManager
 	{
 		Trace.info("Middleware::queryFlight(" + xid + ", " + flightNum + ") called");
 		checkExistence(xid);
-		int seats = flight_Manager.queryFlight(xid, flightNum);
+		int seats = 0;
+		try
+		{
+			seats = flight_Manager.queryFlight(xid, flightNum);
+		}
+		catch (TransactionAbortedException e){
+			abort(xid);
+		}
 		return seats;
 	}
 
@@ -484,7 +560,14 @@ public class Middleware implements IResourceManager
 	{
 		Trace.info("Middleware::queryCars(" + xid + ", " + location + ") called");
 		checkExistence(xid);
-		int numCars = car_Manager.queryCars(xid, location);
+		int numCars = 0;
+		try
+		{
+			numCars = car_Manager.queryCars(xid, location);
+		}
+		catch (TransactionAbortedException e){
+			abort(xid);
+		}
 		return numCars;		
 	}
 
@@ -493,7 +576,14 @@ public class Middleware implements IResourceManager
 	{
 		Trace.info("Middleware::queryRooms(" + xid + ", " + location + ") called");
 		checkExistence(xid);
-		int numRoom = room_Manager.queryRooms(xid, location);
+		int numRoom = 0;
+		try
+		{
+			numRoom = room_Manager.queryRooms(xid, location);
+		}
+		catch(TransactionAbortedException e){
+			abort(xid);
+		}
 		return numRoom;
 	}
 
@@ -504,9 +594,16 @@ public class Middleware implements IResourceManager
 		String bill = "";
 		if (CIDs.contains(customerID))
 		{
-			bill += car_Manager.queryCustomerInfo(xid, customerID);
-			bill += flight_Manager.queryCustomerInfo(xid, customerID);
-			bill += room_Manager.queryCustomerInfo(xid, customerID);
+
+			try
+			{
+				bill += car_Manager.queryCustomerInfo(xid, customerID);
+				bill += flight_Manager.queryCustomerInfo(xid, customerID);
+				bill += room_Manager.queryCustomerInfo(xid, customerID);
+			}
+			catch(TransactionAbortedException e){
+				abort(xid);
+			}
 			if (bill.equals("")){
 				bill = "No bills found for customer " + customerID + "\n";
 			}
@@ -526,7 +623,13 @@ public class Middleware implements IResourceManager
 	{
 		Trace.info("Middleware::queryFlightPrice(" + xid + ", " + flightNum + ") called");
 		checkExistence(xid);
-		int price = flight_Manager.queryFlightPrice(xid, flightNum);
+		int price = 0;
+		try{
+			price = flight_Manager.queryFlightPrice(xid, flightNum);
+		}
+		catch (TransactionAbortedException e){
+			abort(xid);
+		}
 		return price;
 	}
 
@@ -535,7 +638,12 @@ public class Middleware implements IResourceManager
 	{
 		Trace.info("Middleware::queryCarsPrice(" + xid + ", " + location + ") called");
 		checkExistence(xid);
-		int price = car_Manager.queryCarsPrice(xid, location);
+		int price = 0;
+		try{
+			price = car_Manager.queryCarsPrice(xid, location);
+		}catch(TransactionAbortedException e){
+			abort(xid);
+		}
 		return price;
 	}
 
@@ -544,7 +652,13 @@ public class Middleware implements IResourceManager
 	{
 		Trace.info("Middleware::queryRoomsPrice(" + xid + ", " + location + ") called");
 		checkExistence(xid);
-		int price = room_Manager.queryRoomsPrice(xid, location);
+		int price = 0;
+		try{
+			price = room_Manager.queryRoomsPrice(xid, location);
+		}
+		catch (TransactionAbortedException e){
+			abort(xid);
+		}
 		return price;
 	}
 
@@ -554,8 +668,14 @@ public class Middleware implements IResourceManager
 		Trace.info("Middleware::reserveFlight(" + xid + ", " + customerID + ", " + flightNum + ") called");
 		checkExistence(xid);
 		associateManager(xid, "flight");
-		
-		return (flight_Manager.reserveFlight(xid, customerID, flightNum));
+		boolean success = true;
+		try{
+			success = (flight_Manager.reserveFlight(xid, customerID, flightNum));
+		}
+		catch (TransactionAbortedException e){
+			abort(xid);
+		}
+		return success;
 	}
 
 	// Adds car reservation to this customer
@@ -565,8 +685,14 @@ public class Middleware implements IResourceManager
 
 		checkExistence(xid);
 		associateManager(xid, "car");
-
-		return (car_Manager.reserveCar(xid, customerID, location));
+		boolean success = true;
+		try{
+			success = (car_Manager.reserveCar(xid, customerID, location));
+		}
+		catch(TransactionAbortedException e){
+			abort(xid);
+		}
+		return success;
 	}
 
 	// Adds room reservation to this customer
@@ -576,8 +702,14 @@ public class Middleware implements IResourceManager
 		
 		checkExistence(xid);
 		associateManager(xid, "room");
-
-		return (room_Manager.reserveRoom(xid, customerID, location));
+		boolean success = true;
+		try{
+			success = room_Manager.reserveRoom(xid, customerID, location);
+		}
+		catch(TransactionAbortedException e){
+			abort(xid);
+		}
+		return success;
 	}
 
 	// Reserve bundle 
