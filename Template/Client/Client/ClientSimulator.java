@@ -142,7 +142,8 @@ public class ClientSimulator
 		long sum = 0;
 		for (int i=0; i < numClients; i++) { // Get measurements
 			AutomatedClient ac = clients[i];
-			ac.print("My average performance was: " + Long.toString(ac.timePerQuery) + "ms");
+			ac.print("My average performance was: " + Float.toString(ac.timePerQuery) + "ms");
+			ac.print("My query per second is " + Float.toString(1000/ac.timePerQuery) + "queries");
 			sum += ac.timePerQuery;
 		}
 		return sum / numClients;

@@ -12,7 +12,8 @@ public class AutomatedClient extends Thread
     private int numClients = 0;
     private long timeSum = 0;
     private String tid = "";
-    public long timePerQuery = 0;
+    public float timePerQuery;
+    private int MAXLOAD = 300;
     //ClientSimulator parent = null;
 	IResourceManager resourceManager = null;
 
@@ -35,11 +36,11 @@ public class AutomatedClient extends Thread
             for (int i=-15; i < numQueries; i++) {
                 startTime = System.nanoTime();
             
-                print("Starting new transaction");
+                //print("Starting new transaction");
                 xid = resourceManager.start();
-                resourceManager.newCustomer(xid,xid);
                 resourceManager.addFlight(xid,xid,100,100);
-                resourceManager.reserveFlight(xid, xid, xid);
+                resourceManager.addFlight(xid,xid,100,100);
+                resourceManager.addFlight(xid,xid,100,100);
                 resourceManager.commit(xid);
 
                 if (i >= 0) {
@@ -55,7 +56,7 @@ public class AutomatedClient extends Thread
                     Thread.sleep(100);
                 }
             }
-            timePerQuery = timeSum / numQueries;
+            timePerQuery = ((float)timeSum) / ((float)numQueries);
             // print("My average performance was: " + Long.toString(timePerQuery) + "ms");
                 
 
