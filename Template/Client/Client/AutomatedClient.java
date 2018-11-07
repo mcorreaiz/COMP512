@@ -39,12 +39,12 @@ public class AutomatedClient extends Thread
                 //print("Starting new transaction");
                 xid = resourceManager.start();
                 resourceManager.addFlight(xid,xid,100,100);
-                resourceManager.addFlight(xid,xid,100,100);
-                resourceManager.addFlight(xid,xid,100,100);
+                resourceManager.addCars(xid,"city-"+xid,100,100);
+                resourceManager.addRooms(xid,"city-"+xid,100,100);
                 resourceManager.commit(xid);
 
+                elapsedTime = (System.nanoTime() - startTime) / 1000000;
                 if (i >= 0) {
-                    elapsedTime = (System.nanoTime() - startTime) / 1000000;
                     timeSum += elapsedTime;
                     
                     toSleep = (long)(1000 / queriesPerSecond) - elapsedTime;

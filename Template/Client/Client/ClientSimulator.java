@@ -17,7 +17,7 @@ public class ClientSimulator
 	protected static int numClients = 0;
     protected static int numQueries = 0;
     protected static int queriesPerSecond = 0;
-	protected static AutomatedClient clients[] = new AutomatedClient[16];
+	protected static AutomatedClient clients[] = new AutomatedClient[256];
 
 	//protected static int averageSum;
     
@@ -72,15 +72,15 @@ public class ClientSimulator
 			System.exit(1);
 		}
 
-		int clientNumbers[] = {2, 4, 8, 16};
-		int qps[] = {1024, 2048, 4096, 8192};
+		int clientNumbers[] = {16, 32, 64, 128, 256};
+		int qps[] = {128, 256, 512, 1024, 2048, 4096, 8192, 16384};
 		// int queries[] = {50, 100, 200, 400, 600, 800};
 
 		if (numClients == 0) {
 			for (int i = 0; i < 5; i++) {
-				for (int j = 0; j < 4; j++) {
+				for (int j = 0; j < 8; j++) {
 					//runTests(1, queries[j]*10, queries[j]*10);
-					runTests(clientNumbers[i], qps[j]*10, qps[j]);
+					runTests(clientNumbers[i], 4500, qps[j]);
 				}
 			}
 		} else {
@@ -143,7 +143,7 @@ public class ClientSimulator
 		for (int i=0; i < numClients; i++) { // Get measurements
 			AutomatedClient ac = clients[i];
 			ac.print("My average performance was: " + Float.toString(ac.timePerQuery) + "ms");
-			ac.print("My query per second is " + Float.toString(1000/ac.timePerQuery) + "queries");
+			ac.print("My query per second is " + Float.toString(1000/ac.timePerQuery) + " queries");
 			sum += ac.timePerQuery;
 		}
 		return sum / numClients;

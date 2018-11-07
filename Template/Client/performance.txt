@@ -1,2 +1,0 @@
-Number of Clients,Tx per Second,Avg. Response Time
-1,500,3
