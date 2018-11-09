@@ -164,6 +164,9 @@ public class ResourceManager implements IResourceManager
 	{	
 		beforeFilter(xid, key, TransactionLockObject.LockType.LOCK_WRITE);
 		synchronized(m_data) {
+			RMItem item = readData(xid, key);
+			System.out.println("Write log");
+			writeImage(xid, key, item);
 			m_data.remove(key);
 		}
 	}
