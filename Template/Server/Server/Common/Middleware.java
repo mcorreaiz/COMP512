@@ -137,17 +137,17 @@ public class Middleware implements IResourceManager
 		if (existing.indexOf("car") >= 0)
 		{
 			Trace.info("Middleware asks nicely that car Manager should commit(" + transactionId + ")");
-			success = success && car_Manager.commit(transactionId);
+			car_Manager.commit(transactionId);
 		}
 		if (existing.indexOf("flight") >= 0)
 		{
 			Trace.info("Middleware asks nicely that flight Manager should commit(" + transactionId + ")");			
-			success = success && flight_Manager.commit(transactionId);
+			flight_Manager.commit(transactionId);
 		}
 		if (existing.indexOf("room") >= 0)
 		{
 			Trace.info("Middleware asks nicely that room Manager should commit(" + transactionId + ")");
-			success = success && room_Manager.commit(transactionId);
+			room_Manager.commit(transactionId);
 		}
 		removeTransaction(transactionId);
 		killTimer(transactionId);
@@ -545,6 +545,7 @@ public class Middleware implements IResourceManager
 		Trace.info("Middleware::queryFlight(" + xid + ", " + flightNum + ") called");
 		checkExistence(xid);
 		int seats = 0;
+		associateManager(xid, "flight");
 		try
 		{
 			seats = flight_Manager.queryFlight(xid, flightNum);
@@ -560,6 +561,7 @@ public class Middleware implements IResourceManager
 	{
 		Trace.info("Middleware::queryCars(" + xid + ", " + location + ") called");
 		checkExistence(xid);
+		associateManager(xid, "car");
 		int numCars = 0;
 		try
 		{
@@ -576,6 +578,7 @@ public class Middleware implements IResourceManager
 	{
 		Trace.info("Middleware::queryRooms(" + xid + ", " + location + ") called");
 		checkExistence(xid);
+		associateManager(xid, "room");
 		int numRoom = 0;
 		try
 		{
@@ -590,7 +593,10 @@ public class Middleware implements IResourceManager
 	public String queryCustomerInfo(int xid, int customerID) throws RemoteException,TransactionAbortedException,InvalidTransactionException
 	{
 		Trace.info("Middleware::queryCustomerInfo(" + xid + ", " + customerID + ") called");	
-		checkExistence(xid);		
+		checkExistence(xid);
+		associateManager(xid, "car");
+		associateManager(xid, "flight");
+		associateManager(xid, "room");		
 		String bill = "";
 		if (CIDs.contains(customerID))
 		{
@@ -623,6 +629,7 @@ public class Middleware implements IResourceManager
 	{
 		Trace.info("Middleware::queryFlightPrice(" + xid + ", " + flightNum + ") called");
 		checkExistence(xid);
+		associateManager(xid, "flight");
 		int price = 0;
 		try{
 			price = flight_Manager.queryFlightPrice(xid, flightNum);
@@ -638,6 +645,7 @@ public class Middleware implements IResourceManager
 	{
 		Trace.info("Middleware::queryCarsPrice(" + xid + ", " + location + ") called");
 		checkExistence(xid);
+		associateManager(xid, "car");
 		int price = 0;
 		try{
 			price = car_Manager.queryCarsPrice(xid, location);
@@ -652,6 +660,7 @@ public class Middleware implements IResourceManager
 	{
 		Trace.info("Middleware::queryRoomsPrice(" + xid + ", " + location + ") called");
 		checkExistence(xid);
+		associateManager(xid, "room");		
 		int price = 0;
 		try{
 			price = room_Manager.queryRoomsPrice(xid, location);
