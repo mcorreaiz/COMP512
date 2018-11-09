@@ -27,7 +27,6 @@ public class Middleware implements IResourceManager
 	//resource managers 
 	protected static HashMap s_resourceManagers;
 	//client IDs
-	protected static ArrayList<Integer> CIDs = new ArrayList<Integer>();
 	protected static IResourceManager car_Manager = null;
 	protected static IResourceManager flight_Manager = null;
 	protected static IResourceManager room_Manager = null;
@@ -380,7 +379,6 @@ public class Middleware implements IResourceManager
 		String.valueOf(Calendar.getInstance().get(Calendar.MILLISECOND)) +
 		String.valueOf(Math.round(Math.random() * 100 + 1)));
 
-		CIDs.add(cid);
 		try
 		{
 			// create new customers on other RMs as well
@@ -418,7 +416,6 @@ public class Middleware implements IResourceManager
 		
 		if (success)
 		{
-			CIDs.add(customerID);
 			System.out.println("Add customer ID: " + customerID);
 		}
 		else
@@ -503,40 +500,32 @@ public class Middleware implements IResourceManager
 		Trace.info("Middleware::deleteCustomer(" + xid + ", " + customerID + ") called");
 		boolean success = true;
 
-		if (CIDs.contains(customerID)){
-			checkExistence(xid);
+		checkExistence(xid);
 
-			associateManager(xid, "car");
-			associateManager(xid, "flight");
-			associateManager(xid, "room");
+		associateManager(xid, "car");
+		associateManager(xid, "flight");
+		associateManager(xid, "room");
 
-			try
-			{
-
-				success = success && (car_Manager.deleteCustomer(xid, customerID));
-				success = success && (room_Manager.deleteCustomer(xid, customerID));
-				success = success && (flight_Manager.deleteCustomer(xid, customerID));
-			}
-			catch (TransactionAbortedException e){
-				abort(xid);
-			}
-
-			if (success) 
-			{
-				CIDs.remove(customerID);
-				Trace.info("Customer Deleted");
-			} 
-			else 
-			{
-				Trace.info("Customer could not be deleted");
-			}
-			return success;
-		}
-		else
+		try
 		{
-			Trace.info("Customer doesn't exit");
-			return false;
+
+			success = success && (car_Manager.deleteCustomer(xid, customerID));
+			success = success && (room_Manager.deleteCustomer(xid, customerID));
+			success = success && (flight_Manager.deleteCustomer(xid, customerID));
 		}
+		catch (TransactionAbortedException e){
+			abort(xid);
+		}
+
+		if (success) 
+		{
+			Trace.info("Customer Deleted");
+		} 
+		else 
+		{
+			Trace.info("Customer could not be deleted");
+		}
+		return success;
 	}
 
 	// Returns the number of empty seats in this flight
@@ -598,28 +587,21 @@ public class Middleware implements IResourceManager
 		associateManager(xid, "flight");
 		associateManager(xid, "room");		
 		String bill = "";
-		if (CIDs.contains(customerID))
-		{
 
-			try
-			{
-				bill += car_Manager.queryCustomerInfo(xid, customerID);
-				bill += flight_Manager.queryCustomerInfo(xid, customerID);
-				bill += room_Manager.queryCustomerInfo(xid, customerID);
-			}
-			catch(TransactionAbortedException e){
-				abort(xid);
-			}
-			if (bill.equals("")){
-				bill = "No bills found for customer " + customerID + "\n";
-			}
-			else{
-				bill = "Bill for customer " + customerID + "is: \n" + bill;
-			}
-		}
-		else
+		try
 		{
-			bill = "Customer " + customerID + " doesn't exist";
+			bill += car_Manager.queryCustomerInfo(xid, customerID);
+			bill += flight_Manager.queryCustomerInfo(xid, customerID);
+			bill += room_Manager.queryCustomerInfo(xid, customerID);
+		}
+		catch(TransactionAbortedException e){
+			abort(xid);
+		}
+		if (bill.equals("")){
+			bill = "No bills found for customer " + customerID + "\n";
+		}
+		else{
+			bill = "Bill for customer " + customerID + "is: \n" + bill;
 		}
 		return bill;
 	}
