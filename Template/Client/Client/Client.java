@@ -60,6 +60,12 @@ public abstract class Client
 			catch (ConnectException|UnmarshalException e) {
 				System.err.println((char)27 + "[31;1mCommand exception: " + (char)27 + "[0mConnection to server lost");
 			}
+			catch (TransactionAbortedException e) {
+				System.err.println((char)27 + "[31;1mCommand exception: " + (char)27 + "[0mTransaction aborted");
+			}
+			catch (InvalidTransactionException e) {
+				System.err.println((char)27 + "[31;1mCommand exception: " + (char)27 + "[0mInvaild transaction");
+			}
 			catch (Exception e) {
 				System.err.println((char)27 + "[31;1mCommand exception: " + (char)27 + "[0mUncaught exception");
 				e.printStackTrace();
@@ -99,52 +105,31 @@ public abstract class Client
 				checkArgumentsCount(2, arguments.size());
 				System.out.println("Committing transaction [xid=" + arguments.elementAt(1) + "]");
 				int xid = toInt(arguments.elementAt(1));
-				try {
-					if (m_resourceManager.commit(xid))
-					{
-						System.out.println("Commit successful!");
-					}
-					else
-					{
-						System.out.println("Commit failed!");
+				if (m_resourceManager.commit(xid))
+				{
+					System.out.println("Commit successful!");
+				}
+				else
+				{
+					System.out.println("Commit failed!");
 
-					}
-					break;
 				}
-				catch (Exception e) {    
-					System.err.println((char)27 + "[31;1mClient exception: " + (char)27 + "[0mUncaught exception");
-					e.getClass().getSimpleName();;
-					break;
-				}
+				break;
 			}
 			case Abort:
 			{
 				checkArgumentsCount(2, arguments.size());
-				try {
-					System.out.println("Abort transaction [xid=" + arguments.elementAt(1) + "]");
-					int xid = toInt(arguments.elementAt(1));
-					m_resourceManager.abort(xid);
-					break;
-				}
-				catch (Exception e) {    
-					System.err.println((char)27 + "[31;1mClient exception: " + (char)27 + "[0mUncaught exception");
-					e.getClass().getSimpleName();;
-					break;
-				}
+				System.out.println("Abort transaction [xid=" + arguments.elementAt(1) + "]");
+				int xid = toInt(arguments.elementAt(1));
+				m_resourceManager.abort(xid);
+				break;
 			}
 			case Shutdown:
 			{
 				checkArgumentsCount(1, arguments.size());
 				System.out.println("Gracefully shutdown all servers ");
-				try {
-					m_resourceManager.shutdown();
-					break;
-				}
-				catch(Exception e) {    
-					System.err.println((char)27 + "[31;1mClient exception: " + (char)27 + "[0mUncaught exception");
-					e.getClass().getSimpleName();;
-					break;
-				}
+				m_resourceManager.shutdown();
+				break;
 			}
 			case AddFlight: {
 				checkArgumentsCount(5, arguments.size());
