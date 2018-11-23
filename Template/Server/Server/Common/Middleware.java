@@ -319,6 +319,7 @@ public class Middleware implements IResourceManager
 		catch (TransactionAbortedException e)
 		{
 			abort(xid);
+			throw new TransactionAbortedException("This transaction has been aborted");
 		}
 		return success;
 	}
@@ -343,6 +344,7 @@ public class Middleware implements IResourceManager
 		}
 		catch (TransactionAbortedException e){
 			abort(xid);
+			throw new TransactionAbortedException("This transaction has been aborted");
 		}
 		return success;
 	}
@@ -367,6 +369,8 @@ public class Middleware implements IResourceManager
 		}
 		catch (TransactionAbortedException e){
 			abort(xid);
+			throw new TransactionAbortedException("This transaction has been aborted");
+
 		}
 		return success;
 	}
@@ -388,6 +392,7 @@ public class Middleware implements IResourceManager
 		}
 		catch (TransactionAbortedException e){
 			abort(xid);
+			throw new TransactionAbortedException("This transaction has been aborted");
 		}
 		Trace.info("RM::newCustomer(" + cid + ") returns ID=" + cid);
 		return cid;
@@ -412,6 +417,7 @@ public class Middleware implements IResourceManager
 		catch (TransactionAbortedException e)
 		{
 			abort(xid);
+			throw new TransactionAbortedException("This transaction has been aborted");
 		}
 		
 		if (success)
@@ -445,6 +451,7 @@ public class Middleware implements IResourceManager
 		}
 		catch (TransactionAbortedException e){
 			abort(xid);
+			throw new TransactionAbortedException("This transaction has been aborted");
 		}
 		return success;
 	}
@@ -468,6 +475,7 @@ public class Middleware implements IResourceManager
 		}
 		catch (TransactionAbortedException e){
 			abort(xid);
+			throw new TransactionAbortedException("This transaction has been aborted");
 		}
 		return success;
 	}
@@ -491,6 +499,7 @@ public class Middleware implements IResourceManager
 		}
 		catch (TransactionAbortedException e){
 			abort(xid);
+			throw new TransactionAbortedException("This transaction has been aborted");
 		}
 		return success;
 	}
@@ -515,6 +524,7 @@ public class Middleware implements IResourceManager
 		}
 		catch (TransactionAbortedException e){
 			abort(xid);
+			throw new TransactionAbortedException("This transaction has been aborted");
 		}
 
 		if (success) 
@@ -541,6 +551,7 @@ public class Middleware implements IResourceManager
 		}
 		catch (TransactionAbortedException e){
 			abort(xid);
+			throw new TransactionAbortedException("This transaction has been aborted");
 		}
 		return seats;
 	}
@@ -558,6 +569,7 @@ public class Middleware implements IResourceManager
 		}
 		catch (TransactionAbortedException e){
 			abort(xid);
+			throw new TransactionAbortedException("This transaction has been aborted");
 		}
 		return numCars;		
 	}
@@ -575,6 +587,7 @@ public class Middleware implements IResourceManager
 		}
 		catch(TransactionAbortedException e){
 			abort(xid);
+			throw new TransactionAbortedException("This transaction has been aborted");
 		}
 		return numRoom;
 	}
@@ -596,6 +609,7 @@ public class Middleware implements IResourceManager
 		}
 		catch(TransactionAbortedException e){
 			abort(xid);
+			throw new TransactionAbortedException("This transaction has been aborted");
 		}
 		if (bill.equals("")){
 			bill = "No bills found for customer " + customerID + "\n";
@@ -618,6 +632,7 @@ public class Middleware implements IResourceManager
 		}
 		catch (TransactionAbortedException e){
 			abort(xid);
+			throw new TransactionAbortedException("This transaction has been aborted");
 		}
 		return price;
 	}
@@ -633,6 +648,7 @@ public class Middleware implements IResourceManager
 			price = car_Manager.queryCarsPrice(xid, location);
 		}catch(TransactionAbortedException e){
 			abort(xid);
+			throw new TransactionAbortedException("This transaction has been aborted");
 		}
 		return price;
 	}
@@ -649,6 +665,7 @@ public class Middleware implements IResourceManager
 		}
 		catch (TransactionAbortedException e){
 			abort(xid);
+			throw new TransactionAbortedException("This transaction has been aborted");
 		}
 		return price;
 	}
@@ -665,6 +682,7 @@ public class Middleware implements IResourceManager
 		}
 		catch (TransactionAbortedException e){
 			abort(xid);
+			throw new TransactionAbortedException("This transaction has been aborted");
 		}
 		return success;
 	}
@@ -682,6 +700,7 @@ public class Middleware implements IResourceManager
 		}
 		catch(TransactionAbortedException e){
 			abort(xid);
+			throw new TransactionAbortedException("This transaction has been aborted");
 		}
 		return success;
 	}
@@ -699,6 +718,7 @@ public class Middleware implements IResourceManager
 		}
 		catch(TransactionAbortedException e){
 			abort(xid);
+			throw new TransactionAbortedException("This transaction has been aborted");
 		}
 		return success;
 	}

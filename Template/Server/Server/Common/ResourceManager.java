@@ -89,14 +89,17 @@ public class ResourceManager implements IResourceManager
 		// Undo all ops.
 		Trace.info("RM::abort(" + transactionId + ") called");
 		RMHashMap image = readImage(transactionId);
-		synchronized(m_data) {
+		if (image != null){
+			synchronized(m_data) {
 			for (String key : image.keySet()) {
 				System.out.println(key + image.get(key));
 				m_data.put(key, image.get(key));
+				}
+
 			}
+			// Delete transaction from log
+			removeImage(transactionId);
 		}
-		// Delete transaction from log
-		removeImage(transactionId);
 		lockManager.UnlockAll(transactionId);
 	}
 
