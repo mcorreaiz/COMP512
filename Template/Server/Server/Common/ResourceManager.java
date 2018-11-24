@@ -17,16 +17,82 @@ public class ResourceManager implements IResourceManager
 	protected String m_name = "";
 	protected RMHashMap m_data = new RMHashMap();
 	private LockManager lockManager = new LockManager();
-	private HashMap<Integer, RMHashMap> beforeImageLog = new HashMap<Integer, RMHashMap>();
-	private HashSet<Integer> startedTransactions = new HashSet<Integer>();
 	protected static HashMap s_resourceManagers;
 	private static HashMap<String, Integer> LocationMapCar = new HashMap<String, Integer>();
 	private static HashMap<String, Integer> LocationMapRoom = new HashMap<String, Integer>();
 
+	private HashMap<Integer, RMHashMap> beforeImageLog = new HashMap<Integer, RMHashMap>();
+	private HashSet<Integer> startedTransactions = new HashSet<Integer>();
+
+	private String masterRecordFile = "/tmp/masterRecord.ser";
+	private String dbCommittedFile;
 
 	public ResourceManager(String p_name)
 	{
 		m_name = p_name;
+		checkOrCreateFiles();
+		restoreMasterRecord();
+	}
+
+	private void checkOrCreateFiles() {
+		try {
+			File tmpFile = new File(masterRecordFile);
+			tmpFile.createNewFile();
+			tmpFile = new File(dbCommittedFile);
+			tmpFile.createNewFile();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	private void restoreMasterRecord() {
+		HashMap hm = null;
+		try {
+			FileInputStream fileIn = new FileInputStream(masterRecordFile);
+			ObjectInputStream in = new ObjectInputStream(fileIn);
+			hm = (HashMap) in.readObject();
+			in.close();
+			fileIn.close();
+		} catch (IOException i) {
+			i.printStackTrace();
+		} catch (ClassNotFoundException c) {
+         System.out.println("Employee class not found");
+         c.printStackTrace();
+		}
+
+		int tid = (int) hm.get("tid"); // Do sth with this guy
+		dbCommittedFile = (String) hm.get("fileName");
+
+		try {
+			FileInputStream fileIn = new FileInputStream(dbCommittedFile);
+			ObjectInputStream in = new ObjectInputStream(fileIn);
+			m_data = (RMHashMap) in.readObject(); // Restore
+			System.out.println("Data recovered:\n" + m_data);
+			in.close();
+			fileIn.close();
+		} catch (IOException i) {
+			i.printStackTrace();
+		} catch (ClassNotFoundException c) {
+         System.out.println("Employee class not found");
+         c.printStackTrace();
+		}
+	}
+
+	private void updateMasterRecord(int xid) {
+		HashMap hm = null;
+		hm.put("tid", xid);
+		hm.put("filename", getTxFilename(xid));
+
+		try {
+			FileOutputStream fileOut = new FileOutputStream(masterRecordFile);
+			ObjectOutputStream out = new ObjectOutputStream(fileOut);
+			out.writeObject(hm);
+			out.close();
+			fileOut.close();
+		} catch (IOException i) {
+			i.printStackTrace();
+		}
+		System.out.println("Updated master record:\n" + hm);
 	}
 
 	private void writeImage(int xid, String key, RMItem value)
@@ -71,6 +137,10 @@ public class ResourceManager implements IResourceManager
 		}
 	}
 
+	private String getTxFilename(int xid) {
+		return "/tmp/dbInProgress" + xid + ".ser";
+	}
+
 	public int start() throws RemoteException
 	{
 		return (512);
@@ -80,7 +150,52 @@ public class ResourceManager implements IResourceManager
 	{
 		// Delete transaction from log
 		Trace.info("RM::commit(" + transactionId + ") called");
-		removeImage(transactionId);
+
+		if (hasImage(transactionId)) {
+			// Read last comitted copy of db
+			RMHashMap committedData = null;
+			try {
+				FileInputStream fileIn = new FileInputStream(dbCommittedFile);
+				ObjectInputStream in = new ObjectInputStream(fileIn);
+				committedData = (RMHashMap) in.readObject();
+				in.close();
+				fileIn.close();
+			} catch (IOException i) {
+				i.printStackTrace();
+			} catch (ClassNotFoundException c) {
+				System.out.println("Employee class not found");
+				c.printStackTrace();
+			}
+			System.out.println("Read last committed data:\n" + committedData);
+
+			// Write only the corresponding data
+			RMHashMap image = readImage(transactionId);
+			for (String key : image.keySet()) {
+				RMItem item = readData(transactionId, key);
+				committedData.put(key, item);
+			}
+
+			// Create and write dbFile in-progress
+			try {
+				FileOutputStream fileOut = new FileOutputStream(getTxFilename(transactionId));
+				ObjectOutputStream out = new ObjectOutputStream(fileOut);
+				out.writeObject(committedData);
+				out.close();
+				fileOut.close();
+			} catch (IOException i) {
+				i.printStackTrace();
+			}
+			System.out.println("Write updated committed data:\n" + committedData);
+			
+			// Delete old file
+			File file = new File(dbCommittedFile);
+			if(file.delete()){
+				System.out.println(dbCommittedFile + " File deleted");
+			}
+			dbCommittedFile = getTxFilename(transactionId);
+
+			removeImage(transactionId);
+		}
 		return lockManager.UnlockAll(transactionId);
 	}
 
@@ -98,6 +213,13 @@ public class ResourceManager implements IResourceManager
 		// Delete transaction from log
 		removeImage(transactionId);
 		lockManager.UnlockAll(transactionId);
+
+		// Delete transaction File
+		File file = new File(getTxFilename(transactionId));
+		if(file.delete()){
+			System.out.println(getTxFilename(transactionId) + " File deleted");
+		}
+
 	}
 
 	public boolean shutdown() throws RemoteException
@@ -114,7 +236,7 @@ public class ResourceManager implements IResourceManager
 				catch(InterruptedException e){
 					System.exit(0);
 				}
-			}   
+			}
 		}).start();
 		return true;
 	}
@@ -128,6 +250,13 @@ public class ResourceManager implements IResourceManager
 				// Else, new transaction.
 				addImage(xid);
 				startedTransactions.add(xid);
+
+				File tmpFile = new File(getTxFilename(xid));
+				try {
+					tmpFile.createNewFile();
+				} catch (IOException i) {
+					i.printStackTrace();
+				}
 			}
 		}
 		try {
