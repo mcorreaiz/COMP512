@@ -14,7 +14,7 @@ public class Middleware implements IResourceManager
 {
 
 	// Middleware just pass the arguments along
-	protected String m_name = "";
+	protected String m_name = "Middleware";
 
 	// Transaction Manager component
 	protected Integer highestXid;
@@ -31,75 +31,8 @@ public class Middleware implements IResourceManager
 	protected static IResourceManager flight_Manager = null;
 	protected static IResourceManager room_Manager = null;
 
-
-
-	// keeping track of timeout 
-	public class TimeOutThread implements Runnable {
-		private int xid = 0;
-
-		public TimeOutThread(int xid) {
-			this.xid = xid;
-		}
-
-		@Override
-		public void run() {
-			try 
-			{
-				Thread.sleep(CONNECTION_TIMEOUT);
-			} 
-			catch (InterruptedException e) 
-			{
-				//exit if interrupted
-				Thread.currentThread().interrupt();
-				return;
-			}
-
-			try 
-			{
-				Trace.info("Middleware::Transaction" + Integer.toString(xid) + " connection timeout");
-				abort(this.xid);
-			} 
-			catch (InvalidTransactionException e) 
-			{
-				Trace.info("Middleware::Transaction" + Integer.toString(xid) + " is no longer valid.");
-			} 
-			catch (RemoteException e) 
-			{
-				Trace.info("Middleware::Transaction" + Integer.toString(xid) + " has remote exception");
-			}
-		}
-	}
-
-	// start a timer for a new transaction
-	private void startTimer(int xid) {
-		Thread now = new Thread(new TimeOutThread(xid));
-		now.start();
-		timeTable.put(xid, now);
-		Trace.info("timer has been reset for transaction " + xid);
-	}
-
-	// reset a Timer when new activity arrives 
-	private synchronized void resetTimer(int xid) throws InvalidTransactionException, TransactionAbortedException {
-		// do nothing if it is not in the time table
-		if (timeTable.get(xid) != null) 
-		{
-			killTimer(xid);
-			startTimer(xid);
-		} 
-	}
-
-	// eliminate outdated timer thread
-	public void killTimer(int id) {
-		Thread p = timeTable.get(id);
-		if (p != null) {
-			p.interrupt();
-		}
-	}
-
-	//remove a timer when transaction is either commited or aborted
-	private void removeTimer(int xid) {
-		timeTable.remove(xid);
-	}
+	private String masterRecordFile = "/tmp/masterRecord.ser";
+	private String dbCommittedFile = "/tmp/A.ser";
 
 	public Middleware(String p_name)
 	{
@@ -114,7 +47,87 @@ public class Middleware implements IResourceManager
 		transactionInfo = new HashMap<Integer, String>();
 		highestXid = 0;
 		Trace.info("All Managers connected and ready to roll");
+		masterRecordFile = m_name + masterRecordFile;
+		dbCommittedFile = m_name + dbCommittedFile;
+		// checkOrCreateFiles();
+		// restoreMasterRecord();
 	}
+
+	// private void checkOrCreateFiles() {
+	// 	try {
+	// 		File tmpFile = new File(masterRecordFile);
+	// 		// if master file exists, there must be a committed version
+	// 		if (!tmpFile.exists()) 
+	// 		{               
+	// 			tmpFile.getParentFile().mkdirs();
+	// 			tmpFile.createNewFile();
+	// 			Trace.info("new persistent master record created at " + tmpFile.getParentFile().getAbsolutePath());
+	// 			File tmpFile2 = new File(dbCommittedFile);
+	// 			if (!tmpFile2.exists()) 
+	// 			{               
+	// 				tmpFile2.getParentFile().mkdirs();
+	// 				tmpFile2.createNewFile();
+	// 				//Trace.info("new persistent commitedFile created at " + tmpFile2.getParentFile().getAbsolutePath());
+	// 			}
+
+	// 		}
+	// 		else{
+	// 			Trace.info("persistent master record exists at " + tmpFile.getParentFile().getAbsolutePath());
+	// 		}
+	// 	} catch (IOException e) {
+	// 		e.printStackTrace();
+	// 	}
+	// }
+
+	// private void restoreMasterRecord() {
+	// 	HashMap hm = null;
+	// 	try {
+	// 		FileInputStream fileIn = new FileInputStream(masterRecordFile);
+	// 		if (fileIn.available() > 0)
+	// 		{
+	// 			ObjectInputStream in = new ObjectInputStream(fileIn);
+	// 			hm = (HashMap<String,String>) in.readObject();
+	// 			in.close();
+	// 			fileIn.close();
+	// 			int tid = Integer.parseInt(hm.get("tid").toString()); // Do sth with this guy
+	// 			Trace.info("tid is" + tid);
+	// 			dbCommittedFile = hm.get("filename").toString();
+	// 			Trace.info("reading committed db file at " + dbCommittedFile);
+	// 			fileIn = new FileInputStream(dbCommittedFile);
+	// 			if (fileIn.available() > 0){
+	// 				in = new ObjectInputStream(fileIn);
+	// 				m_data = (RMHashMap) in.readObject(); // Restore
+	// 				Trace.info("Data recovered:\n" + m_data);
+	// 				in.close();
+	// 				fileIn.close();
+	// 				}
+	// 			}			
+	// 		} 
+	// 		catch (IOException i) {
+	// 		i.printStackTrace();
+	// 		} 
+	// 		catch (ClassNotFoundException c) {
+ //         	System.out.println("Employee class not found");
+ //         	c.printStackTrace();
+	// 		}
+	// }
+
+	// private void updateMasterRecord(int xid) {
+	// 	HashMap hm = new HashMap<String, String>();
+	// 	hm.put("tid", Integer.toString(xid));
+	// 	hm.put("filename", getTxFilename(xid));
+
+	// 	try {
+	// 		FileOutputStream fileOut = new FileOutputStream(masterRecordFile);
+	// 		ObjectOutputStream out = new ObjectOutputStream(fileOut);
+	// 		out.writeObject(hm);
+	// 		out.close();
+	// 		fileOut.close();
+	// 	} catch (IOException i) {
+	// 		i.printStackTrace();
+	// 	}
+	// 	System.out.println("Updated master record:\n" + hm);
+	// }
 
 
 	public int start() throws RemoteException
@@ -892,5 +905,74 @@ public class Middleware implements IResourceManager
 	{
 		return m_name;
 	}
+
+	// keeping track of timeout 
+	public class TimeOutThread implements Runnable {
+		private int xid = 0;
+
+		public TimeOutThread(int xid) {
+			this.xid = xid;
+		}
+
+		@Override
+		public void run() {
+			try 
+			{
+				Thread.sleep(CONNECTION_TIMEOUT);
+			} 
+			catch (InterruptedException e) 
+			{
+				//exit if interrupted
+				Thread.currentThread().interrupt();
+				return;
+			}
+
+			try 
+			{
+				Trace.info("Middleware::Transaction" + Integer.toString(xid) + " connection timeout");
+				abort(this.xid);
+			} 
+			catch (InvalidTransactionException e) 
+			{
+				Trace.info("Middleware::Transaction" + Integer.toString(xid) + " is no longer valid.");
+			} 
+			catch (RemoteException e) 
+			{
+				Trace.info("Middleware::Transaction" + Integer.toString(xid) + " has remote exception");
+			}
+		}
+	}
+
+	// start a timer for a new transaction
+	private void startTimer(int xid) {
+		Thread now = new Thread(new TimeOutThread(xid));
+		now.start();
+		timeTable.put(xid, now);
+		Trace.info("timer has been reset for transaction " + xid);
+	}
+
+	// reset a Timer when new activity arrives 
+	private synchronized void resetTimer(int xid) throws InvalidTransactionException, TransactionAbortedException {
+		// do nothing if it is not in the time table
+		if (timeTable.get(xid) != null) 
+		{
+			killTimer(xid);
+			startTimer(xid);
+		} 
+	}
+
+	// eliminate outdated timer thread
+	public void killTimer(int id) {
+		Thread p = timeTable.get(id);
+		if (p != null) {
+			p.interrupt();
+		}
+	}
+
+	//remove a timer when transaction is either commited or aborted
+	private void removeTimer(int xid) {
+		timeTable.remove(xid);
+	}
+
 }
  
