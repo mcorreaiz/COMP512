@@ -49,85 +49,100 @@ public class Middleware implements IResourceManager
 		Trace.info("All Managers connected and ready to roll");
 		masterRecordFile = m_name + masterRecordFile;
 		dbCommittedFile = m_name + dbCommittedFile;
-		// checkOrCreateFiles();
-		// restoreMasterRecord();
+		checkOrCreateFiles();
+		restoreMasterRecord();
 	}
 
-	// private void checkOrCreateFiles() {
-	// 	try {
-	// 		File tmpFile = new File(masterRecordFile);
-	// 		// if master file exists, there must be a committed version
-	// 		if (!tmpFile.exists()) 
-	// 		{               
-	// 			tmpFile.getParentFile().mkdirs();
-	// 			tmpFile.createNewFile();
-	// 			Trace.info("new persistent master record created at " + tmpFile.getParentFile().getAbsolutePath());
-	// 			File tmpFile2 = new File(dbCommittedFile);
-	// 			if (!tmpFile2.exists()) 
-	// 			{               
-	// 				tmpFile2.getParentFile().mkdirs();
-	// 				tmpFile2.createNewFile();
-	// 				//Trace.info("new persistent commitedFile created at " + tmpFile2.getParentFile().getAbsolutePath());
-	// 			}
+	private void checkOrCreateFiles() 
+	{
+		try {
+			File tmpFile = new File(masterRecordFile);
+			// if master file exists, there must be a committed version
+			if (!tmpFile.exists()) 
+			{               
+				tmpFile.getParentFile().mkdirs();
+				tmpFile.createNewFile();
+				Trace.info("new persistent master record created at " + tmpFile.getParentFile().getAbsolutePath());
+				File tmpFile2 = new File(dbCommittedFile);
+				if (!tmpFile2.exists()) 
+				{               
+					tmpFile2.getParentFile().mkdirs();
+					tmpFile2.createNewFile();
+				}
+			}
+			else{
+				Trace.info("persistent master record exists at " + tmpFile.getParentFile().getAbsolutePath());
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
 
-	// 		}
-	// 		else{
-	// 			Trace.info("persistent master record exists at " + tmpFile.getParentFile().getAbsolutePath());
-	// 		}
-	// 	} catch (IOException e) {
-	// 		e.printStackTrace();
-	// 	}
-	// }
+	private void restoreMasterRecord() 
+	{
+		HashMap hm = null;
+		Coordination coor = null;
 
-	// private void restoreMasterRecord() {
-	// 	HashMap hm = null;
-	// 	try {
-	// 		FileInputStream fileIn = new FileInputStream(masterRecordFile);
-	// 		if (fileIn.available() > 0)
-	// 		{
-	// 			ObjectInputStream in = new ObjectInputStream(fileIn);
-	// 			hm = (HashMap<String,String>) in.readObject();
-	// 			in.close();
-	// 			fileIn.close();
-	// 			int tid = Integer.parseInt(hm.get("tid").toString()); // Do sth with this guy
-	// 			Trace.info("tid is" + tid);
-	// 			dbCommittedFile = hm.get("filename").toString();
-	// 			Trace.info("reading committed db file at " + dbCommittedFile);
-	// 			fileIn = new FileInputStream(dbCommittedFile);
-	// 			if (fileIn.available() > 0){
-	// 				in = new ObjectInputStream(fileIn);
-	// 				m_data = (RMHashMap) in.readObject(); // Restore
-	// 				Trace.info("Data recovered:\n" + m_data);
-	// 				in.close();
-	// 				fileIn.close();
-	// 				}
-	// 			}			
-	// 		} 
-	// 		catch (IOException i) {
-	// 		i.printStackTrace();
-	// 		} 
-	// 		catch (ClassNotFoundException c) {
- //         	System.out.println("Employee class not found");
- //         	c.printStackTrace();
-	// 		}
-	// }
+		//try to load the existing files
+		try {
+			FileInputStream fileIn = new FileInputStream(masterRecordFile);
+			if (fileIn.available() > 0)
+			{
+				ObjectInputStream in = new ObjectInputStream(fileIn);
+				hm = (HashMap<String,String>) in.readObject();
+				in.close();
+				fileIn.close();
+				int tid = Integer.parseInt(hm.get("tid").toString());
+				Trace.info("tid is" + tid);
+				dbCommittedFile = hm.get("filename").toString();
+				Trace.info("reading committed db file at " + dbCommittedFile);
+				fileIn = new FileInputStream(dbCommittedFile);
+				if (fileIn.available() > 0){
+					in = new ObjectInputStream(fileIn);
+					coor = (Coordination) in.readObject(); // Restore
+					Trace.info("Data recovered:\n" + coor);
+					highestXid = coor.highestXid;
+					abortedT = coor.abortedT;
+					transactionInfo = coor.transactionInfo;
+					in.close();
+					fileIn.close();
+					}
+				}			
+			} 
+			catch (IOException i) {
+			i.printStackTrace();
+			} 
+			catch (ClassNotFoundException c) {
+         	System.out.println("class not found");
+         	c.printStackTrace();
+			}
+	}
 
-	// private void updateMasterRecord(int xid) {
-	// 	HashMap hm = new HashMap<String, String>();
-	// 	hm.put("tid", Integer.toString(xid));
-	// 	hm.put("filename", getTxFilename(xid));
+	private void updateMasterRecord(int xid) 
+	{
+		HashMap hm = new HashMap<String, String>();
+		hm.put("tid", Integer.toString(xid));
+		hm.put("filename", getTxFilename(xid));
 
-	// 	try {
-	// 		FileOutputStream fileOut = new FileOutputStream(masterRecordFile);
-	// 		ObjectOutputStream out = new ObjectOutputStream(fileOut);
-	// 		out.writeObject(hm);
-	// 		out.close();
-	// 		fileOut.close();
-	// 	} catch (IOException i) {
-	// 		i.printStackTrace();
-	// 	}
-	// 	System.out.println("Updated master record:\n" + hm);
-	// }
+		try 
+		{
+			FileOutputStream fileOut = new FileOutputStream(masterRecordFile);
+			ObjectOutputStream out = new ObjectOutputStream(fileOut);
+			out.writeObject(hm);
+			out.close();
+			fileOut.close();
+		} 
+		catch (IOException i) 
+		{
+			i.printStackTrace();
+		}
+		System.out.println("Updated master record:\n" + hm);
+	}
+
+	private String getTxFilename(int xid) 
+	{
+		return m_name + "/tmp/dbInProgress" + xid + ".ser";
+	}
 
 
 	public int start() throws RemoteException
@@ -164,6 +179,29 @@ public class Middleware implements IResourceManager
 		removeTransaction(transactionId);
 		killTimer(transactionId);
 		removeTimer(transactionId);
+
+		//only create shadow copy when commit is completed
+		Coordination committedData = new Coordination(highestXid,transactionInfo,abortedT);
+		// Create and write dbFile in-progress
+		try {
+			FileOutputStream fileOut = new FileOutputStream(getTxFilename(transactionId));
+			ObjectOutputStream out = new ObjectOutputStream(fileOut);
+			out.writeObject(committedData);
+			out.close();
+			fileOut.close();
+		} catch (IOException i) {
+			i.printStackTrace();
+		}
+		System.out.println("Write updated committed data:\n" + committedData);
+
+		//update master record to point to the current committed version
+		updateMasterRecord(transactionId);
+		//remove existing 
+		File file = new File(dbCommittedFile);
+		if(file.delete()){
+			System.out.println(dbCommittedFile + " File deleted");
+		}
+		dbCommittedFile = getTxFilename(transactionId);
 		return success;
 	}
 

@@ -1,6 +1,10 @@
 package Server.Common;
+import java.util.*;
+import java.io.*;
+import java.io.Serializable;
+import java.util.concurrent.ConcurrentHashMap;
 
-public class Transaction
+public class Transaction implements Serializable
 {
     public int xid;
     public String logStatus;
@@ -8,6 +12,6 @@ public class Transaction
 
 	public Transaction(int xid)
 	{
-		xid = xid;
+		this.xid = xid;
 	}
 }
