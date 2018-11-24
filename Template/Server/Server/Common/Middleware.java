@@ -20,6 +20,7 @@ public class Middleware implements IResourceManager
 	protected Integer highestXid;
 	protected static ArrayList<Integer> abortedT = new ArrayList<Integer>();
 	protected static HashMap<Integer, String> transactionInfo;
+	protected static HashMap<Integer, Transaction> persistLog;
 	private static int CONNECTION_TIMEOUT = 120000;
 	//manage transaction timeout 
 	private ConcurrentHashMap<Integer, Thread> timeTable = new ConcurrentHashMap<Integer, Thread>();
@@ -33,6 +34,7 @@ public class Middleware implements IResourceManager
 
 	private String masterRecordFile = "/tmp/masterRecord.ser";
 	private String dbCommittedFile = "/tmp/A.ser";
+	private String logFile = "/tmp/log.ser";
 
 	public Middleware(String p_name)
 	{
@@ -44,13 +46,17 @@ public class Middleware implements IResourceManager
 		car_Manager = (IResourceManager)s_resourceManagers.get("Cars");
 		flight_Manager = (IResourceManager)s_resourceManagers.get("Flights");
 		room_Manager = (IResourceManager)s_resourceManagers.get("Rooms");
+
 		transactionInfo = new HashMap<Integer, String>();
+		persistLog = new HashMap<Integer, Transaction>();
 		highestXid = 0;
-		Trace.info("All Managers connected and ready to roll");
+		
 		masterRecordFile = m_name + masterRecordFile;
 		dbCommittedFile = m_name + dbCommittedFile;
+		logFile = m_name + logFile;
 		checkOrCreateFiles();
 		restoreMasterRecord();
+		Trace.info("All Managers connected and ready to roll");
 	}
 
 	private void checkOrCreateFiles() 
@@ -69,6 +75,14 @@ public class Middleware implements IResourceManager
 					tmpFile2.getParentFile().mkdirs();
 					tmpFile2.createNewFile();
 				}
+
+				//create the persistant logs
+				File tmpFile3 = new File(logFile);
+				if (!tmpFile3.exists()) 
+				{               
+					tmpFile3.getParentFile().mkdirs();
+					tmpFile3.createNewFile();
+				}
 			}
 			else{
 				Trace.info("persistent master record exists at " + tmpFile.getParentFile().getAbsolutePath());
@@ -83,7 +97,27 @@ public class Middleware implements IResourceManager
 		HashMap hm = null;
 		Coordination coor = null;
 
-		//try to load the existing files
+		//try to load existing data logs
+		try{
+			FileInputStream fileIn = new FileInputStream(logFile);
+			if (fileIn.available() > 0)
+				{
+					ObjectInputStream in = new ObjectInputStream(fileIn);
+					persistLog = (HashMap<Integer,Transaction>) in.readObject();
+					in.close();
+					fileIn.close();
+					restartProtocal();
+				}
+			}
+			catch (IOException i) {
+			i.printStackTrace();
+			} 
+			catch (ClassNotFoundException c) {
+			System.out.println("class not found");
+			c.printStackTrace();
+			}
+		
+		//try to load the existing data 
 		try {
 			FileInputStream fileIn = new FileInputStream(masterRecordFile);
 			if (fileIn.available() > 0)
@@ -99,22 +133,26 @@ public class Middleware implements IResourceManager
 				fileIn = new FileInputStream(dbCommittedFile);
 				if (fileIn.available() > 0){
 					in = new ObjectInputStream(fileIn);
-					coor = (Coordination) in.readObject(); // Restore
-					Trace.info("Data recovered:\n" + coor);
-					highestXid = coor.highestXid;
-					abortedT = coor.abortedT;
-					transactionInfo = coor.transactionInfo;
+					coor = (Coordination) in.readObject();
+					Trace.info("Data recovered:\n");
+
+					//restore the important information
+					highestXid = Integer.valueOf(coor.highestXid.intValue());
+					abortedT = (ArrayList<Integer>)coor.abortedT.clone();
+					transactionInfo = (HashMap<Integer, String>)coor.transactionInfo.clone();
 					in.close();
 					fileIn.close();
 					}
 				}			
 			} 
-			catch (IOException i) {
-			i.printStackTrace();
+			catch (IOException i) 
+			{
+				i.printStackTrace();
 			} 
-			catch (ClassNotFoundException c) {
-         	System.out.println("class not found");
-         	c.printStackTrace();
+			catch (ClassNotFoundException c) 
+			{
+         		System.out.println("class not found");
+         		c.printStackTrace();
 			}
 	}
 
@@ -139,9 +177,54 @@ public class Middleware implements IResourceManager
 		System.out.println("Updated master record:\n" + hm);
 	}
 
+	private void restartProtocal(){
+
+	}
+
+	private void persistLogFile()
+	{
+		try 
+		{
+			FileOutputStream fileOut = new FileOutputStream(logFile);
+			ObjectOutputStream out = new ObjectOutputStream(fileOut);
+			out.writeObject(persistLog);
+			out.close();
+			fileOut.close();
+		} 
+		catch (IOException i) 
+		{
+			i.printStackTrace();
+		}
+		Trace.info("Updated Log Files:\n");
+	}
+
+
 	private String getTxFilename(int xid) 
 	{
 		return m_name + "/tmp/dbInProgress" + xid + ".ser";
+	}
+
+	private void writeLog(int xid, String log)
+	{
+		synchronized(persistLog) {
+			//create new log
+			if(persistLog.get(xid) == null){
+				Transaction txn = new Transaction(xid);
+				persistLog.put(xid,txn);
+			}
+			//updating existing log
+			else{
+				Transaction txn = (Transaction)persistLog.get(xid);
+				txn.addLog(log);
+				persistLog.put(xid,txn);
+			}
+		}
+		persistLogFile();
+	}
+
+	private String readLog(int xid){
+		Transaction txn = (Transaction)persistLog.get(xid);
+		return txn.latestLog();
 	}
 
 
@@ -151,6 +234,9 @@ public class Middleware implements IResourceManager
 		int xid = incrementXid();
 		writeTransaction(xid,"");
 		startTimer(xid);
+
+		//add a new transaction Log
+		writeLog(xid, "");
 		return xid;
 	}
 
@@ -158,6 +244,13 @@ public class Middleware implements IResourceManager
 	{
 		Trace.info("Middleware::commit(" + transactionId + ") called");
 		checkExistence(transactionId);
+		//start 2PC protocal
+		writeLog(transactionId, "Start2PC");
+
+
+
+
+		
 		String existing = readTransaction(transactionId);
 		boolean success = true;
 
