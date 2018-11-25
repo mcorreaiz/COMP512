@@ -90,6 +90,32 @@ public abstract class Client
 				}
 				break;
 			}
+			case resetCrashes:
+			{
+				checkArgumentsCount(1, arguments.size());
+
+				System.out.println("Reset Crashes for all nodes");
+				m_resourceManager.resetCrashes();
+				break;
+			}
+			case crashMiddleware:
+			{
+				checkArgumentsCount(2, arguments.size());
+
+				System.out.println("Setting Crash Mode for Transaction Manager of Mode" + arguments.elementAt(1) + "]");
+				int CRASHMODE = toInt(arguments.elementAt(1));
+				m_resourceManager.crashMiddleware(CRASHMODE);
+				break;
+			}
+			case crashResourceManager:
+			{
+				checkArgumentsCount(3, arguments.size());
+
+				System.out.println("Setting Crash Mode for " + arguments.elementAt(2) + " of Mode" + arguments.elementAt(2) + "]");
+				int CRASHMODE = toInt(arguments.elementAt(2));
+				m_resourceManager.crashResourceManager(arguments.elementAt(1),CRASHMODE);
+				break;
+			}
 			case Start:
 			{
 				checkArgumentsCount(1, arguments.size());

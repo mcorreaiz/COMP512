@@ -258,8 +258,36 @@ public interface IResourceManager extends Remote
     throws RemoteException;
 
     /**
-     * Start transaction
-     *
-     * @return xid
+     * The voting request method for 2PC 
+     * @return boolean
+     * yes for ready to commit, no for abort
      */
+    public boolean prepare(int xid)
+    throws RemoteException, TransactionAbortedException, InvalidTransactionException;
+
+    /**
+     * disable crashes
+     * reset crash mode to 0 (no crash)
+     */
+    public void resetCrashes() throws RemoteException;
+
+
+    /**
+     * enable crashes for middleware
+     * set new crash mode
+     */
+    public void crashMiddleware(int mode) throws RemoteException;
+
+
+    /**
+     * enable crashes for resource managers
+     * set new crash mode
+     */
+    public void crashResourceManager(String name /* RM Name */, int mode) 
+    throws RemoteException;
+
+
+
+
+
 }

@@ -14,6 +14,9 @@ import java.io.*;
 
 public class ResourceManager implements IResourceManager
 {
+
+	protected static int CRASHMODE = 0;
+
 	protected String m_name = "";
 	protected RMHashMap m_data = new RMHashMap();
 	private LockManager lockManager = new LockManager();
@@ -26,6 +29,52 @@ public class ResourceManager implements IResourceManager
 
 	private String masterRecordFile = "/tmp/masterRecord.ser";
 	private String dbCommittedFile = "/tmp/dbCommittedFile.ser";
+
+	/**
+     * The voting request method for 2PC 
+     * @return boolean
+     * yes for ready to commit, no for abort
+     */
+    public boolean prepare(int xid)
+	throws RemoteException, TransactionAbortedException, InvalidTransactionException
+	{
+		//need to persist the logs here 
+		return true;
+	}
+
+    /**
+     * disable crashes
+     * reset crash mode to 0 (no crash)
+     */
+	public void resetCrashes() throws RemoteException
+	{
+		Trace.info("RM::resetCrashes");
+		CRASHMODE = 0;
+	}
+
+
+    /**
+     * enable crashes for middleware
+     * set new crash mode
+     */
+	public void crashMiddleware(int mode) throws RemoteException
+	{
+
+	}
+
+
+    /**
+     * enable crashes for resource managers
+     * set new crash mode
+     */
+    public void crashResourceManager(String name /* RM Name */, int mode) 
+	throws RemoteException
+	{
+		Trace.info("Middleware::crashResourceManager" + mode);
+		if (name.equals(m_name)){
+			CRASHMODE = mode;
+		}
+	}
 
 	public ResourceManager(String p_name)
 	{

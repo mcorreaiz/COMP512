@@ -13,6 +13,12 @@ import java.util.concurrent.ConcurrentHashMap;
 public class Middleware implements IResourceManager
 {
 
+	protected static int CRASHMODE = 0;
+	private static int REPLY_TIMEOUT = 20000;
+	private static int CONNECTION_TIMEOUT = 120000;
+
+
+
 	// Middleware just pass the arguments along
 	protected String m_name = "Middleware";
 
@@ -21,7 +27,6 @@ public class Middleware implements IResourceManager
 	protected static ArrayList<Integer> abortedT = new ArrayList<Integer>();
 	protected static HashMap<Integer, String> transactionInfo;
 	protected static HashMap<Integer, Transaction> persistLog;
-	private static int CONNECTION_TIMEOUT = 120000;
 	//manage transaction timeout 
 	private ConcurrentHashMap<Integer, Thread> timeTable = new ConcurrentHashMap<Integer, Thread>();
 	
@@ -36,13 +41,50 @@ public class Middleware implements IResourceManager
 	private String dbCommittedFile = "/tmp/A.ser";
 	private String logFile = "/tmp/log.ser";
 
+
+	/**
+     * The voting request method for 2PC 
+     * @return boolean
+     * yes for ready to commit, no for abort
+     */
+    public boolean prepare(int xid)
+	throws RemoteException, TransactionAbortedException, InvalidTransactionException{
+		return true;
+	}
+
+    /**
+     * disable crashes
+     * reset crash mode to 0 (no crash)
+     */
+	public void resetCrashes() throws RemoteException{
+		Trace.info("Middleware::resetCrashes");
+		CRASHMODE = 0;
+		car_Manager.resetCrashes();
+		flight_Manager.resetCrashes();
+		room_Manager.resetCrashes();
+	}
+
+
+    /**
+     * enable crashes for middleware
+     * set new crash mode
+     */
+	public void crashMiddleware(int mode) throws RemoteException{
+		Trace.info("Middleware::crashMiddleware" + mode);
+		CRASHMODE = mode;
+	}
+
+    public void crashResourceManager(String name /* RM Name */, int mode) throws RemoteException{
+	}
+	
+
 	public Middleware(String p_name)
 	{
 		m_name = p_name;
+		CRASHMODE = 0;
 	}
 
-	public void initialize()
-	{
+	public void initialize(){
 		car_Manager = (IResourceManager)s_resourceManagers.get("Cars");
 		flight_Manager = (IResourceManager)s_resourceManagers.get("Flights");
 		room_Manager = (IResourceManager)s_resourceManagers.get("Rooms");
@@ -55,12 +97,14 @@ public class Middleware implements IResourceManager
 		dbCommittedFile = m_name + dbCommittedFile;
 		logFile = m_name + logFile;
 		checkOrCreateFiles();
+		if (CRASHMODE == 8){
+			System.exit(1);
+		}
 		restoreMasterRecord();
 		Trace.info("All Managers connected and ready to roll");
 	}
 
-	private void checkOrCreateFiles() 
-	{
+	private void checkOrCreateFiles() {
 		try {
 			File tmpFile = new File(masterRecordFile);
 			// if master file exists, there must be a committed version
@@ -92,8 +136,7 @@ public class Middleware implements IResourceManager
 		}
 	}
 
-	private void restoreMasterRecord() 
-	{
+	private void restoreMasterRecord() {
 		HashMap hm = null;
 		Coordination coor = null;
 
@@ -156,8 +199,7 @@ public class Middleware implements IResourceManager
 			}
 	}
 
-	private void updateMasterRecord(int xid) 
-	{
+	private void updateMasterRecord(int xid) {
 		HashMap hm = new HashMap<String, String>();
 		hm.put("tid", Integer.toString(xid));
 		hm.put("filename", getTxFilename(xid));
@@ -195,7 +237,7 @@ public class Middleware implements IResourceManager
 		{
 			i.printStackTrace();
 		}
-		Trace.info("Updated Log Files:\n");
+		//Trace.info("Updated Log Files:\n");
 	}
 
 
@@ -217,6 +259,7 @@ public class Middleware implements IResourceManager
 				Transaction txn = (Transaction)persistLog.get(xid);
 				txn.addLog(log);
 				persistLog.put(xid,txn);
+				Trace.info("Transaction " + xid + " has been logged: " + log);
 			}
 		}
 		persistLogFile();
@@ -240,63 +283,174 @@ public class Middleware implements IResourceManager
 		return xid;
 	}
 
-	public boolean commit(int transactionId) throws RemoteException,TransactionAbortedException,InvalidTransactionException
-	{
+	public boolean commit(int transactionId) throws RemoteException,TransactionAbortedException,InvalidTransactionException{
 		Trace.info("Middleware::commit(" + transactionId + ") called");
 		checkExistence(transactionId);
 		//start 2PC protocal
 		writeLog(transactionId, "Start2PC");
+		String existing = readTransaction(transactionId);
+		boolean success = true;
+		//send out vote requests and start timers
+		if (CRASHMODE == 1){
+			System.exit(1);	
+		}
+		success = voteRequest(transactionId);
+
+		if (success)
+		{
+			//write decision
+			if (CRASHMODE == 4){
+				System.exit(1);
+			}
+			writeLog(transactionId, "commit");
+			
+			if (CRASHMODE == 5){
+				System.exit(1);
+			}
+			commit4Real(transactionId);
+
+			removeTransaction(transactionId);
+			killTimer(transactionId);
+			removeTimer(transactionId);
+
+			//only create shadow copy when commit is completed
+			Coordination committedData = new Coordination(highestXid,transactionInfo,abortedT);
+			// Create and write dbFile in-progress
+			try {
+				FileOutputStream fileOut = new FileOutputStream(getTxFilename(transactionId));
+				ObjectOutputStream out = new ObjectOutputStream(fileOut);
+				out.writeObject(committedData);
+				out.close();
+				fileOut.close();
+			} catch (IOException i) {
+				i.printStackTrace();
+			}
+			System.out.println("Write updated committed data:\n" + committedData);
+
+			//update master record to point to the current committed version
+			updateMasterRecord(transactionId);
+			//remove existing 
+			File file = new File(dbCommittedFile);
+			if(file.delete()){
+				System.out.println(dbCommittedFile + " File deleted");
+			}
+			dbCommittedFile = getTxFilename(transactionId);
+
+			writeLog(transactionId,"EOT");
+			return success;
+		}
+		else
+		{
+			return success;
+		}
+	}
 
 
-
-
-		
+	private boolean voteRequest(int transactionId) throws RemoteException,TransactionAbortedException,InvalidTransactionException
+	{
 		String existing = readTransaction(transactionId);
 		boolean success = true;
 
 		if (existing.indexOf("car") >= 0)
 		{
+			Trace.info("Middleware asks car Manager to vote for commit(" + transactionId + ")");
+			Thread car = new Thread(new ReplyThread(transactionId, "car"));
+			car.start();
+			//same as not send
+			if (CRASHMODE == 2){
+				System.exit(1);	
+			}
+			success = success && (car_Manager.prepare(transactionId));
+			if (CRASHMODE == 3){
+				System.exit(1);
+			}
+			car.interrupt();
+			if (!success)
+			{
+				writeLog(transactionId, "abort");
+				this.abort(transactionId);
+				return false;
+			}
+		}
+		if (existing.indexOf("flight") >= 0)
+		{
+			Trace.info("Middleware asks flight Manager to vote for commit(" + transactionId + ")");
+			Thread flight = new Thread(new ReplyThread(transactionId, "flight"));
+			flight.start();
+			if (CRASHMODE == 2){
+				System.exit(1);	
+			}
+			success = success && (flight_Manager.prepare(transactionId));
+			if (CRASHMODE == 3){
+				System.exit(1);
+			}
+			flight.interrupt();
+			if (!success)
+			{
+				writeLog(transactionId, "abort");
+				this.abort(transactionId);
+				return false;
+			}
+		}
+		if (existing.indexOf("room") >= 0)
+		{
+			Trace.info("Middleware asks room Manager to vote for commit(" + transactionId + ")");
+			Thread room = new Thread(new ReplyThread(transactionId, "room"));
+			room.start();
+			if (CRASHMODE == 2){
+				System.exit(1);	
+			}
+			success = success && (room_Manager.prepare(transactionId));
+			if (CRASHMODE == 3){
+				System.exit(1);
+			}
+			room.interrupt();
+			if (!success)
+			{
+				writeLog(transactionId, "abort");
+				this.abort(transactionId);
+				return false;
+			}
+		}
+
+		return success;
+	}
+
+	private void commit4Real(int transactionId) throws RemoteException,TransactionAbortedException,InvalidTransactionException
+	{
+		String existing = readTransaction(transactionId);
+
+		if (existing.indexOf("car") >= 0)
+		{
 			Trace.info("Middleware asks nicely that car Manager should commit(" + transactionId + ")");
 			car_Manager.commit(transactionId);
+			if (CRASHMODE == 6){
+				System.exit(1);
+			}
 		}
 		if (existing.indexOf("flight") >= 0)
 		{
 			Trace.info("Middleware asks nicely that flight Manager should commit(" + transactionId + ")");			
 			flight_Manager.commit(transactionId);
+			if (CRASHMODE == 6){
+				System.exit(1);
+			}
 		}
 		if (existing.indexOf("room") >= 0)
 		{
 			Trace.info("Middleware asks nicely that room Manager should commit(" + transactionId + ")");
 			room_Manager.commit(transactionId);
+			if (CRASHMODE == 6){
+				System.exit(1);
+			}
 		}
-		removeTransaction(transactionId);
-		killTimer(transactionId);
-		removeTimer(transactionId);
 
-		//only create shadow copy when commit is completed
-		Coordination committedData = new Coordination(highestXid,transactionInfo,abortedT);
-		// Create and write dbFile in-progress
-		try {
-			FileOutputStream fileOut = new FileOutputStream(getTxFilename(transactionId));
-			ObjectOutputStream out = new ObjectOutputStream(fileOut);
-			out.writeObject(committedData);
-			out.close();
-			fileOut.close();
-		} catch (IOException i) {
-			i.printStackTrace();
+		if (CRASHMODE == 7){
+			System.exit(1);
 		}
-		System.out.println("Write updated committed data:\n" + committedData);
 
-		//update master record to point to the current committed version
-		updateMasterRecord(transactionId);
-		//remove existing 
-		File file = new File(dbCommittedFile);
-		if(file.delete()){
-			System.out.println(dbCommittedFile + " File deleted");
-		}
-		dbCommittedFile = getTxFilename(transactionId);
-		return success;
 	}
+
 
 	public void abort(int transactionId) throws RemoteException,InvalidTransactionException
 	{
@@ -309,8 +463,10 @@ public class Middleware implements IResourceManager
 			Trace.info(transactionId + " already aborted");
 		}
 
+		//first write the decision
+		writeLog(transactionId, "abort");
+
 		String existing = readTransaction(transactionId);
-		System.out.println(existing);
 		if (existing.indexOf("car") >= 0)
 		{
 			Trace.info("Middleware demands that car Manager must abort(" + transactionId + ")");			
@@ -1038,6 +1194,46 @@ public class Middleware implements IResourceManager
 	}
 
 	// keeping track of timeout 
+	public class ReplyThread implements Runnable {
+		private String manager;
+		private int xid;
+
+		public ReplyThread(int xid, String manager) {
+			this.manager = manager;
+			this.xid = xid;
+		}
+
+		@Override
+		public void run() {
+			try 
+			{
+				Thread.sleep(REPLY_TIMEOUT);
+			} 
+			catch (InterruptedException e) 
+			{
+				//exit if interrupted
+				Thread.currentThread().interrupt();
+				return;
+			}
+
+			try 
+			{
+				Trace.info("Middleware::Resource Manager" + manager + " vote request timeout");
+				abort(this.xid);
+			} 
+			catch (InvalidTransactionException e) 
+			{
+				Trace.info("Middleware::Transaction" + Integer.toString(xid) + " is no longer valid.");
+			} 
+			catch (RemoteException e) 
+			{
+				Trace.info("Middleware::Transaction" + Integer.toString(xid) + " has remote exception");
+			}
+		}
+	}
+
+
+	// keeping track of client timeout 
 	public class TimeOutThread implements Runnable {
 		private int xid = 0;
 
