@@ -17,7 +17,7 @@ public class ResourceManager implements IResourceManager
 {
 
 	protected static int CRASHMODE = 0;
-	private static int CONNECTION_TIMEOUT = 10000;
+	private static int CONNECTION_TIMEOUT = 90000;
 
 	protected String m_name = "";
 	protected RMHashMap m_data = new RMHashMap();
@@ -29,6 +29,8 @@ public class ResourceManager implements IResourceManager
 
 	private HashMap<Integer, RMHashMap> beforeImageLog = new HashMap<Integer, RMHashMap>();
 	private HashSet<Integer> startedTransactions = new HashSet<Integer>();
+	private HashSet<Integer> abortedTransactions = new HashSet<Integer>();
+
 	//manage transaction timeout 
 	private ConcurrentHashMap<Integer, Thread> timeTable = new ConcurrentHashMap<Integer, Thread>();
 	protected static HashMap<Integer, Transaction> persistLog = new HashMap<Integer, Transaction>();
@@ -45,7 +47,57 @@ public class ResourceManager implements IResourceManager
     public boolean prepare(int xid)
 	throws RemoteException, TransactionAbortedException, InvalidTransactionException
 	{
-		//need to persist the logs here 
+		// Check if transaction was aborted
+		if (abortedTransactions.contains(xid)) return false;
+		
+		// Read last comitted copy of db
+		RMHashMap committedData = null;
+		try {
+			FileInputStream fileIn = new FileInputStream(dbCommittedFile);
+			if (fileIn.available() != 0)
+			{
+				ObjectInputStream in = new ObjectInputStream(fileIn);
+				committedData = (RMHashMap) in.readObject();
+				in.close();
+				fileIn.close();
+				System.out.println("Read last committed data:\n" + committedData);
+
+			}
+			else
+			{
+				committedData = (RMHashMap)this.m_data.clone();
+				System.out.println("create first version of committed data\n" + committedData);
+			}
+			
+		} catch (IOException i) {
+			i.printStackTrace();
+		} catch (ClassNotFoundException c) {
+			c.printStackTrace();
+		}
+
+		// Write only the corresponding data
+		RMHashMap image = readImage(xid);
+		for (String key : image.keySet()) {
+			RMItem item = readData(xid, key);
+			committedData.put(key, item);
+		}
+
+		// Create and write dbFile in-progress
+		try {
+			FileOutputStream fileOut = new FileOutputStream(getTxFilename(xid));
+			ObjectOutputStream out = new ObjectOutputStream(fileOut);
+			out.writeObject(committedData);
+			out.close();
+			fileOut.close();
+		} catch (IOException i) {
+			i.printStackTrace();
+		}
+		System.out.println("Write updated ready-to-commit data:\n" + committedData);
+
+		writeLog(xid, "yes");
+
+		killTimer(xid);
+		removeTimer(xid);
 		return true;
 	}
 
@@ -69,7 +121,6 @@ public class ResourceManager implements IResourceManager
 
 	}
 
-
     /**
      * enable crashes for resource managers
      * set new crash mode
@@ -83,8 +134,7 @@ public class ResourceManager implements IResourceManager
 		}
 	}
 
-	public ResourceManager(String p_name)
-	{
+	public ResourceManager(String p_name) {
 		m_name = p_name;
 		masterRecordFile = m_name + masterRecordFile;
 		dbCommittedFile = m_name + dbCommittedFile;
@@ -160,11 +210,14 @@ public class ResourceManager implements IResourceManager
 				fileIn = new FileInputStream(logFile);
 				if (fileIn.available() > 0)
 				{
-					ObjectInputStream in = new ObjectInputStream(fileIn);
+					in = new ObjectInputStream(fileIn);
 					persistLog = (HashMap<Integer,Transaction>) in.readObject();
 					in.close();
 					fileIn.close();
 					restartProtocal();
+				}
+				for (int key : persistLog.keySet()) {
+					System.out.println("TID=" + key + ": " + persistLog.get(key));
 				}
 			}			
 		} 
@@ -234,7 +287,13 @@ public class ResourceManager implements IResourceManager
 		return txn.latestLog();
 	}
 
-	private void restartProtocal(){
+	private void deleteLog(int xid) {
+		synchronized (persistLog) {
+			persistLog.remove(xid);
+		}
+	}
+
+	private void restartProtocal() {
 
 	}
 
@@ -312,48 +371,8 @@ public class ResourceManager implements IResourceManager
 		Trace.info("RM::commit(" + transactionId + ") called");
 
 		if (hasImage(transactionId)) {
-			// Read last comitted copy of db
-			RMHashMap committedData = null;
-			try {
-				FileInputStream fileIn = new FileInputStream(dbCommittedFile);
-				if (fileIn.available() != 0)
-				{
-					ObjectInputStream in = new ObjectInputStream(fileIn);
-					committedData = (RMHashMap) in.readObject();
-					in.close();
-					fileIn.close();
-					System.out.println("Read last committed data:\n" + committedData);
+			writeLog(transactionId, "commit");
 
-				}
-				else{
-					committedData = (RMHashMap)this.m_data.clone();
-					System.out.println("create first version of committed data\n" + committedData);
-				}
-				
-			} catch (IOException i) {
-				i.printStackTrace();
-			} catch (ClassNotFoundException c) {
-				c.printStackTrace();
-			}
-
-			// Write only the corresponding data
-			RMHashMap image = readImage(transactionId);
-			for (String key : image.keySet()) {
-				RMItem item = readData(transactionId, key);
-				committedData.put(key, item);
-			}
-
-			// Create and write dbFile in-progress
-			try {
-				FileOutputStream fileOut = new FileOutputStream(getTxFilename(transactionId));
-				ObjectOutputStream out = new ObjectOutputStream(fileOut);
-				out.writeObject(committedData);
-				out.close();
-				fileOut.close();
-			} catch (IOException i) {
-				i.printStackTrace();
-			}
-			System.out.println("Write updated committed data:\n" + committedData);
 			//update master record to point to the current committed version
 			updateMasterRecord(transactionId);
 			
@@ -370,13 +389,19 @@ public class ResourceManager implements IResourceManager
 			killTimer(transactionId);
 			removeTimer(transactionId);
 		}
+		deleteLog(transactionId);
 		return lockManager.UnlockAll(transactionId);
 	}
 
 	public void abort(int transactionId) throws RemoteException, InvalidTransactionException
 	{
-		// Undo all ops.
 		Trace.info("RM::abort(" + transactionId + ") called");
+
+		if (abortedTransactions.contains(transactionId)) return;
+		writeLog(transactionId, "abort");
+		abortedTransactions.add(transactionId);
+
+		// Undo all ops.
 		RMHashMap image = readImage(transactionId);
 		synchronized(m_data) {
 			for (String key : image.keySet()) {
@@ -397,7 +422,7 @@ public class ResourceManager implements IResourceManager
 				System.out.println(getTxFilename(transactionId) + " File deleted");
 			}
 		}
-
+		deleteLog(transactionId);		
 	}
 
 	public boolean shutdown() throws RemoteException
@@ -435,6 +460,11 @@ public class ResourceManager implements IResourceManager
 			lockManager.Lock(xid, key, lock);
 		}
 		catch (DeadlockException e){
+			try {
+				abort(xid);
+			} catch (RemoteException r) {
+				r.printStackTrace();
+			}
 			throw new TransactionAbortedException();
 		}
 	}
