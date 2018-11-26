@@ -250,12 +250,12 @@ public class Middleware implements IResourceManager
 	{
 		synchronized(persistLog) {
 			//create new log
-			if(persistLog.get(xid) == null){
+			if (persistLog.get(xid) == null) {
 				Transaction txn = new Transaction(xid);
 				persistLog.put(xid,txn);
 			}
 			//updating existing log
-			else{
+			else {
 				Transaction txn = (Transaction)persistLog.get(xid);
 				txn.addLog(log);
 				persistLog.put(xid,txn);

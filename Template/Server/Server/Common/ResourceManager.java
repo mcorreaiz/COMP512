@@ -11,24 +11,31 @@ import Server.LockManager.*;
 import java.util.*;
 import java.rmi.RemoteException;
 import java.io.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ResourceManager implements IResourceManager
 {
 
 	protected static int CRASHMODE = 0;
+	private static int CONNECTION_TIMEOUT = 10000;
 
 	protected String m_name = "";
 	protected RMHashMap m_data = new RMHashMap();
 	private LockManager lockManager = new LockManager();
 	protected static HashMap s_resourceManagers;
+
 	private static HashMap<String, Integer> LocationMapCar = new HashMap<String, Integer>();
 	private static HashMap<String, Integer> LocationMapRoom = new HashMap<String, Integer>();
 
 	private HashMap<Integer, RMHashMap> beforeImageLog = new HashMap<Integer, RMHashMap>();
 	private HashSet<Integer> startedTransactions = new HashSet<Integer>();
+	//manage transaction timeout 
+	private ConcurrentHashMap<Integer, Thread> timeTable = new ConcurrentHashMap<Integer, Thread>();
+	protected static HashMap<Integer, Transaction> persistLog = new HashMap<Integer, Transaction>();
 
 	private String masterRecordFile = "/tmp/masterRecord.ser";
-	private String dbCommittedFile = "/tmp/dbCommittedFile.ser";
+	private String dbCommittedFile = "/tmp/dbCommitted.ser";
+	private String logFile = "/tmp/log.ser";
 
 	/**
      * The voting request method for 2PC 
@@ -81,6 +88,7 @@ public class ResourceManager implements IResourceManager
 		m_name = p_name;
 		masterRecordFile = m_name + masterRecordFile;
 		dbCommittedFile = m_name + dbCommittedFile;
+		logFile = m_name + logFile;
 		checkOrCreateFiles();
 		restoreMasterRecord();
 	}
@@ -101,6 +109,14 @@ public class ResourceManager implements IResourceManager
 					tmpFile2.createNewFile();
 					//Trace.info("new persistent commitedFile created at " + tmpFile2.getParentFile().getAbsolutePath());
 				}
+				
+				//create the persistant logs
+				File tmpFile3 = new File(logFile);
+				if (!tmpFile3.exists()) 
+				{               
+					tmpFile3.getParentFile().mkdirs();
+					tmpFile3.createNewFile();
+				}
 
 			}
 			else{
@@ -113,7 +129,9 @@ public class ResourceManager implements IResourceManager
 
 	private void restoreMasterRecord() {
 		HashMap hm = null;
+
 		try {
+			// Restore master record
 			FileInputStream fileIn = new FileInputStream(masterRecordFile);
 			if (fileIn.available() > 0)
 			{
@@ -121,27 +139,41 @@ public class ResourceManager implements IResourceManager
 				hm = (HashMap<String,String>) in.readObject();
 				in.close();
 				fileIn.close();
+
 				int tid = Integer.parseInt(hm.get("tid").toString()); // Do sth with this guy
-				Trace.info("tid is" + tid);
+				Trace.info("TID is " + tid);
 				dbCommittedFile = hm.get("filename").toString();
 				Trace.info("reading committed db file at " + dbCommittedFile);
+
+				// Restore db file
 				fileIn = new FileInputStream(dbCommittedFile);
-				if (fileIn.available() > 0){
+				if (fileIn.available() > 0)
+				{
 					in = new ObjectInputStream(fileIn);
 					m_data = (RMHashMap) in.readObject(); // Restore
 					Trace.info("Data recovered:\n" + m_data);
 					in.close();
 					fileIn.close();
-					}
-				}			
-			} 
-			catch (IOException i) {
-			i.printStackTrace();
-			} 
-			catch (ClassNotFoundException c) {
-         	System.out.println("Employee class not found");
-         	c.printStackTrace();
-			}
+				}
+
+				// Restore logs
+				fileIn = new FileInputStream(logFile);
+				if (fileIn.available() > 0)
+				{
+					ObjectInputStream in = new ObjectInputStream(fileIn);
+					persistLog = (HashMap<Integer,Transaction>) in.readObject();
+					in.close();
+					fileIn.close();
+					restartProtocal();
+				}
+			}			
+		} 
+		catch (IOException i) {
+		i.printStackTrace();
+		} 
+		catch (ClassNotFoundException c) {
+		c.printStackTrace();
+		}
 	}
 
 	private void updateMasterRecord(int xid) {
@@ -159,6 +191,51 @@ public class ResourceManager implements IResourceManager
 			i.printStackTrace();
 		}
 		System.out.println("Updated master record:\n" + hm);
+	}
+	
+	private void persistLogFile()
+	{
+		try 
+		{
+			FileOutputStream fileOut = new FileOutputStream(logFile);
+			ObjectOutputStream out = new ObjectOutputStream(fileOut);
+			out.writeObject(persistLog);
+			out.close();
+			fileOut.close();
+		} 
+		catch (IOException i) 
+		{
+			i.printStackTrace();
+		}
+		//Trace.info("Updated Log Files:\n");
+	}
+
+	private void writeLog(int xid, String log)
+	{
+		synchronized(persistLog) {
+			//create new log
+			if (persistLog.get(xid) == null) {
+				Transaction txn = new Transaction(xid);
+				persistLog.put(xid,txn);
+			}
+			//updating existing log
+			else {
+				Transaction txn = (Transaction)persistLog.get(xid);
+				txn.addLog(log);
+				persistLog.put(xid,txn);
+				Trace.info("Transaction " + xid + " has been logged: " + log);
+			}
+		}
+		persistLogFile();
+	}
+	
+	private String readLog(int xid){
+		Transaction txn = (Transaction)persistLog.get(xid);
+		return txn.latestLog();
+	}
+
+	private void restartProtocal(){
+
 	}
 
 	private void writeImage(int xid, String key, RMItem value)
@@ -210,7 +287,23 @@ public class ResourceManager implements IResourceManager
 
 	public int start() throws RemoteException
 	{
-		return (512);
+		return 512;
+	}
+
+	private void startTx(int xid) {
+		addImage(xid);
+		startedTransactions.add(xid);
+		startTimer(xid);
+
+		File tmpFile = new File(getTxFilename(xid));
+		try {
+			tmpFile.createNewFile();
+		} catch (IOException i) {
+			i.printStackTrace();
+		}
+		
+		//add a new transaction Log
+		writeLog(xid, "");
 	}
 
 	public boolean commit(int transactionId) throws RemoteException, TransactionAbortedException, InvalidTransactionException
@@ -240,7 +333,6 @@ public class ResourceManager implements IResourceManager
 			} catch (IOException i) {
 				i.printStackTrace();
 			} catch (ClassNotFoundException c) {
-				System.out.println("Employee class not found");
 				c.printStackTrace();
 			}
 
@@ -266,19 +358,17 @@ public class ResourceManager implements IResourceManager
 			updateMasterRecord(transactionId);
 			
 			// Delete old file
-
-			//should you delete the old file?
-			//what happens when the past filename == your current file name? (ex. restart from xid = 1)
-
-			//??????????????????????????????????????????????????????????
-
-			File file = new File(dbCommittedFile);
-			if(file.delete()){
-				System.out.println(dbCommittedFile + " File deleted");
+			if (!dbCommittedFile.equals(getTxFilename(transactionId))) {
+				File file = new File(dbCommittedFile);
+				if (file.delete()){
+					System.out.println(dbCommittedFile + " File deleted");
+				}
+				dbCommittedFile = getTxFilename(transactionId);
 			}
-			dbCommittedFile = getTxFilename(transactionId);
 
 			removeImage(transactionId);
+			killTimer(transactionId);
+			removeTimer(transactionId);
 		}
 		return lockManager.UnlockAll(transactionId);
 	}
@@ -296,12 +386,16 @@ public class ResourceManager implements IResourceManager
 		}
 		// Delete transaction from log
 		removeImage(transactionId);
+		killTimer(transactionId);
+		removeTimer(transactionId);
 		lockManager.UnlockAll(transactionId);
 
 		// Delete transaction File
-		File file = new File(getTxFilename(transactionId));
-		if(file.delete()){
-			System.out.println(getTxFilename(transactionId) + " File deleted");
+		if (!dbCommittedFile.equals(getTxFilename(transactionId))) {
+			File file = new File(getTxFilename(transactionId));
+			if (file.delete()){
+				System.out.println(getTxFilename(transactionId) + " File deleted");
+			}
 		}
 
 	}
@@ -332,16 +426,10 @@ public class ResourceManager implements IResourceManager
 				throw new InvalidTransactionException();
 			} else {
 				// Else, new transaction.
-				addImage(xid);
-				startedTransactions.add(xid);
-
-				File tmpFile = new File(getTxFilename(xid));
-				try {
-					tmpFile.createNewFile();
-				} catch (IOException i) {
-					i.printStackTrace();
-				}
+				startTx(xid);
 			}
+		} else {
+			resetTimer(xid);
 		}
 		try {
 			lockManager.Lock(xid, key, lock);
@@ -838,5 +926,73 @@ public class ResourceManager implements IResourceManager
 	public String getName() throws RemoteException
 	{
 		return m_name;
+	}
+
+	// keeping track of middleware timeout 
+	public class TimeOutThread implements Runnable {
+		private int xid = 0;
+
+		public TimeOutThread(int xid) {
+			this.xid = xid;
+		}
+
+		@Override
+		public void run() {
+			try 
+			{
+				Thread.sleep(CONNECTION_TIMEOUT);
+			} 
+			catch (InterruptedException e) 
+			{
+				//exit if interrupted
+				Thread.currentThread().interrupt();
+				return;
+			}
+
+			try 
+			{
+				Trace.info("Middleware::Transaction" + Integer.toString(xid) + " connection timeout");
+				abort(this.xid);
+			} 
+			catch (InvalidTransactionException e) 
+			{
+				Trace.info("Middleware::Transaction" + Integer.toString(xid) + " is no longer valid.");
+			} 
+			catch (RemoteException e) 
+			{
+				Trace.info("Middleware::Transaction" + Integer.toString(xid) + " has remote exception");
+			}
+		}
+	}
+	
+	// start a timer for a new transaction
+	private void startTimer(int xid) {
+		Thread now = new Thread(new TimeOutThread(xid));
+		now.start();
+		timeTable.put(xid, now);
+		Trace.info("timer has been reset for transaction " + xid);
+	}
+
+	// reset a Timer when new activity arrives 
+	private synchronized void resetTimer(int xid) throws InvalidTransactionException, TransactionAbortedException {
+		// do nothing if it is not in the time table
+		if (timeTable.get(xid) != null) 
+		{
+			killTimer(xid);
+			startTimer(xid);
+		} 
+	}
+
+	// eliminate outdated timer thread
+	public void killTimer(int id) {
+		Thread p = timeTable.get(id);
+		if (p != null) {
+			p.interrupt();
+		}
+	}
+
+	//remove a timer when transaction is either commited or aborted
+	private void removeTimer(int xid) {
+		timeTable.remove(xid);
 	}
 }
