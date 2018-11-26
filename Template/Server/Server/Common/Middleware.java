@@ -49,7 +49,37 @@ public class Middleware implements IResourceManager
      */
     public boolean prepare(int xid)
 	throws RemoteException, TransactionAbortedException, InvalidTransactionException{
-		return true;
+
+		if (xid > highestXid){
+			//this should never be the case
+			return false;
+		}
+		else{
+
+			if (abortedT.contains(xid)){
+				return false;
+			}
+			else{
+				synchronized(persistLog){
+					//if it is in the active list of logged transaction
+					if (persistLog.get(xid) != null){
+						Transaction txn = persistLog.get(xid);
+						if(txn.latestLog().equals("abort")){
+							return false;
+						}
+						else if (txn.latestLog().equals("commit")){
+							return true;
+						}
+						else{
+							return false;
+						}
+					}
+					else{
+						return true;
+					}
+				}
+			}
+		}
 	}
 
     /**
@@ -101,6 +131,7 @@ public class Middleware implements IResourceManager
 			System.exit(1);
 		}
 		restoreMasterRecord();
+		restartProtocal();
 		Trace.info("All Managers connected and ready to roll");
 	}
 
@@ -220,24 +251,92 @@ public class Middleware implements IResourceManager
 	}
 
 	private void restartProtocal(){
+		//try to load the existing data 
+		try {
+			FileInputStream fileIn = new FileInputStream(logFile);
+			if (fileIn.available() > 0)
+			{
+				ObjectInputStream in = new ObjectInputStream(fileIn);
+				persistLog = (HashMap<Integer, Transaction>) in.readObject();
+				in.close();
+				fileIn.close();
+				Trace.info("Loaded log Files");
+				}			
+			} 
+			catch (IOException i) 
+			{
+				i.printStackTrace();
+			} 
+			catch (ClassNotFoundException c) 
+			{
+         		System.out.println("class not found");
+         		c.printStackTrace();
+		}
 
+		if (CRASHMODE == 8){
+			System.exit(1);
+		}
+		//operate correspondingly for each log
+		if (persistLog.size()>0){
+			for (int i=persistLog.size()-1; i>=0; i--) {    
+				Transaction txn = persistLog.remove(i);
+				if (txn.latestLog().equals("Empty")){
+					abortAll(txn.xid);
+				}
+				else if (txn.latestLog().equals("abort")){
+					abortAll(txn.xid);
+				}
+				else if (txn.latestLog().equals("commit")){
+					commitAll(txn.xid);
+				}
+			} 
+		}
+	}
+
+	private void abortAll(int xid){
+		
+		try{
+			car_Manager.abort(xid);
+		}catch(Exception e){}
+		try{
+			flight_Manager.abort(xid);
+		}catch(Exception e){}
+		try{
+			room_Manager.abort(xid);
+		}catch(Exception e){}
+		abortedT.add(xid);
+	}
+
+	private void commitAll(int xid){
+		try{
+			car_Manager.commit(xid);
+		}catch(Exception e){}
+		try{
+			flight_Manager.commit(xid);
+		}catch(Exception e){}
+		try{
+			room_Manager.commit(xid);
+		}catch(Exception e){}
+		removeTransaction(xid);
 	}
 
 	private void persistLogFile()
 	{
-		try 
-		{
-			FileOutputStream fileOut = new FileOutputStream(logFile);
-			ObjectOutputStream out = new ObjectOutputStream(fileOut);
-			out.writeObject(persistLog);
-			out.close();
-			fileOut.close();
-		} 
-		catch (IOException i) 
-		{
-			i.printStackTrace();
+		synchronized(persistLog){
+			try 
+			{
+				FileOutputStream fileOut = new FileOutputStream(logFile);
+				ObjectOutputStream out = new ObjectOutputStream(fileOut);
+				out.writeObject(persistLog);
+				out.close();
+				fileOut.close();
+			} 
+			catch (IOException i) 
+			{
+				i.printStackTrace();
+			}
+
 		}
-		//Trace.info("Updated Log Files:\n");
 	}
 
 
@@ -263,6 +362,16 @@ public class Middleware implements IResourceManager
 			}
 		}
 		persistLogFile();
+	}
+
+	//remove the log when it is end of transaction
+	private void removeLog(int xid){
+		synchronized(persistLog) {
+			//create new log
+			if(persistLog.get(xid) != null){
+				persistLog.remove(xid);
+			}
+		}
 	}
 
 	private String readLog(int xid){
@@ -309,7 +418,6 @@ public class Middleware implements IResourceManager
 			}
 			commit4Real(transactionId);
 
-			removeTransaction(transactionId);
 			killTimer(transactionId);
 			removeTimer(transactionId);
 
@@ -331,12 +439,14 @@ public class Middleware implements IResourceManager
 			updateMasterRecord(transactionId);
 			//remove existing 
 			File file = new File(dbCommittedFile);
-			if(file.delete()){
-				System.out.println(dbCommittedFile + " File deleted");
+			if (!dbCommittedFile.equals(getTxFilename(transactionId))){
+				if(file.delete()){
+					System.out.println(dbCommittedFile + " File deleted");
+				}	
 			}
 			dbCommittedFile = getTxFilename(transactionId);
-
-			writeLog(transactionId,"EOT");
+			removeTransaction(transactionId);
+			removeLog(transactionId);
 			return success;
 		}
 		else
@@ -486,6 +596,33 @@ public class Middleware implements IResourceManager
 		abortedT.add(transactionId);
 		killTimer(transactionId);
 		removeTimer(transactionId);
+		
+		//persist the middleware hashmaps
+		//only create shadow copy when abort is completed
+		Coordination committedData = new Coordination(highestXid,transactionInfo,abortedT);
+		// Create and write dbFile in-progress
+		try {
+			FileOutputStream fileOut = new FileOutputStream(getTxFilename(transactionId));
+			ObjectOutputStream out = new ObjectOutputStream(fileOut);
+			out.writeObject(committedData);
+			out.close();
+			fileOut.close();
+		} catch (IOException i) {
+			i.printStackTrace();
+		}
+		System.out.println("Write updated committed data:\n" + committedData);
+
+		//update master record to point to the current committed version
+		updateMasterRecord(transactionId);
+		//remove existing 
+		File file = new File(dbCommittedFile);
+		if (!dbCommittedFile.equals(getTxFilename(transactionId))){
+			if(file.delete()){
+				System.out.println(dbCommittedFile + " File deleted");
+			}
+		}
+		dbCommittedFile = getTxFilename(transactionId);
+		removeLog(transactionId);
 	}
 
 	public boolean shutdown() throws RemoteException
@@ -558,7 +695,9 @@ public class Middleware implements IResourceManager
 	protected void removeTransaction(int xid)
 	{
 		synchronized(transactionInfo) {
-			transactionInfo.remove(xid);
+			if(transactionInfo.containsKey(xid)){
+				transactionInfo.remove(xid);
+			}
 		}
 	}
 

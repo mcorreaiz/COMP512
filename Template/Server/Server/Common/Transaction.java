@@ -9,7 +9,7 @@ public class Transaction implements Serializable
 	private static final long serialVersionUID = 1L;
     public int xid;
 	public List<String> StatusLog;
-    public RMHashMap data;
+	public RMHashMap data;
 
 	public Transaction(int xid)
 	{
