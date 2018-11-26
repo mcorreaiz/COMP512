@@ -3,12 +3,15 @@ package Server.Common;
 import Server.Interface.*;
 
 import java.util.*;
+import java.util.Map;
 import java.io.*;
 import java.rmi.RemoteException;
 import java.rmi.ConnectException;
 import java.rmi.ServerException;
 import java.rmi.UnmarshalException;
 import java.util.concurrent.ConcurrentHashMap;
+
+import javax.transaction.InvalidTransactionException;
 
 public class Middleware implements IResourceManager
 {
@@ -105,6 +108,15 @@ public class Middleware implements IResourceManager
 	}
 
     public void crashResourceManager(String name /* RM Name */, int mode) throws RemoteException{
+		if (name.equals("car")){
+			car_Manager.crashResourceManager("car", mode);
+		}
+		else if(name.equals("flight")){
+			flight_Manager.crashResourceManager("flight", mode);
+		}
+		else if(name.equals("room")){
+			room_Manager.crashResourceManager("room", mode);
+		}
 	}
 	
 
@@ -180,7 +192,6 @@ public class Middleware implements IResourceManager
 					persistLog = (HashMap<Integer,Transaction>) in.readObject();
 					in.close();
 					fileIn.close();
-					restartProtocal();
 				}
 			}
 			catch (IOException i) {
@@ -276,49 +287,57 @@ public class Middleware implements IResourceManager
 		if (CRASHMODE == 8){
 			System.exit(1);
 		}
-		//operate correspondingly for each log
-		if (persistLog.size()>0){
-			for (int i=persistLog.size()-1; i>=0; i--) {    
-				Transaction txn = persistLog.remove(i);
-				if (txn.latestLog().equals("Empty")){
-					abortAll(txn.xid);
-				}
-				else if (txn.latestLog().equals("abort")){
-					abortAll(txn.xid);
-				}
-				else if (txn.latestLog().equals("commit")){
-					commitAll(txn.xid);
-				}
-			} 
-		}
-	}
-
-	private void abortAll(int xid){
 		
-		try{
-			car_Manager.abort(xid);
-		}catch(Exception e){}
-		try{
-			flight_Manager.abort(xid);
-		}catch(Exception e){}
-		try{
-			room_Manager.abort(xid);
-		}catch(Exception e){}
-		abortedT.add(xid);
+		// Integer highest = Integer.valueOf(0);
+		// //operate correspondingly for each log
+		// try {
+		// 	for (Integer key: persistLog.keySet()){
+		// 		if (key.intValue() > highest.intValue()){
+		// 			highest = Integer.valueOf(key);
+		// 		}
+		// 		Transaction txn = persistLog.remove(key);
+		// 		if (txn.latestLog().equals("Empty")){
+		// 			abortAll(txn.xid);
+		// 		}
+		// 		else if (txn.latestLog().equals("abort")){
+		// 			abortAll(txn.xid);
+		// 		}
+		// 		else if (txn.latestLog().equals("commit")){
+		// 			commitAll(txn.xid);
+		// 		}
+		// 	}
+		// 	if (highest.intValue()>highestXid.intValue()){
+		// 		highestXid = Integer.valueOf(highest.intValue());
+		// 	}
+		// }
+		// catch (Exception e){}
 	}
 
-	private void commitAll(int xid){
-		try{
-			car_Manager.commit(xid);
-		}catch(Exception e){}
-		try{
-			flight_Manager.commit(xid);
-		}catch(Exception e){}
-		try{
-			room_Manager.commit(xid);
-		}catch(Exception e){}
-		removeTransaction(xid);
-	}
+	// private void abortAll(int xid)throws RemoteException, TransactionAbortedException, InvalidTransactionException{
+	// 	try{
+	// 		car_Manager.abort(xid);
+	// 	}catch(Exception e){}
+	// 	try{
+	// 		flight_Manager.abort(xid);
+	// 	}catch(Exception e){}
+	// 	try{
+	// 		room_Manager.abort(xid);
+	// 	}catch(Exception e){}
+	// 	abortedT.add(xid);
+	// }
+
+	// private void commitAll(int xid)throws RemoteException, TransactionAbortedException, InvalidTransactionException{
+	// 	try{
+	// 		car_Manager.commit(xid);
+	// 	}catch(Exception e){}
+	// 	try{
+	// 		flight_Manager.commit(xid);
+	// 	}catch(Exception e){}
+	// 	try{
+	// 		room_Manager.commit(xid);
+	// 	}catch(Exception e){}
+	// 	removeTransaction(xid);
+	// }
 
 	private void persistLogFile()
 	{
