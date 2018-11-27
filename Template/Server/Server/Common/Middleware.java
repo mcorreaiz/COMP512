@@ -32,6 +32,7 @@ public class Middleware implements IResourceManager
 	
 	//resource managers 
 	protected static HashMap s_resourceManagers;
+	protected static HashMap RMServers;
 	//client IDs
 	protected static IResourceManager car_Manager = null;
 	protected static IResourceManager flight_Manager = null;
@@ -834,7 +835,7 @@ public class Middleware implements IResourceManager
 
 	public int newCustomer(int xid) throws RemoteException,TransactionAbortedException,InvalidTransactionException
 	{
-		Trace.info("RM::newCustomer(" + xid + ") called");
+		Trace.info("Middleware::newCustomer(" + xid + ") called");
 		// Generate a globally unique ID for the new customer
 		int cid = Integer.parseInt(String.valueOf(xid) +
 		String.valueOf(Calendar.getInstance().get(Calendar.MILLISECOND)) +
@@ -851,7 +852,8 @@ public class Middleware implements IResourceManager
 			abort(xid);
 			throw new TransactionAbortedException("This transaction has been aborted");
 		}
-		Trace.info("RM::newCustomer(" + cid + ") returns ID=" + cid);
+
+		Trace.info("Middleware::newCustomer(" + cid + ") returns ID=" + cid);
 		return cid;
 	}
 

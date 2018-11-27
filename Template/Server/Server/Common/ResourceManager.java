@@ -407,10 +407,12 @@ public class ResourceManager implements IResourceManager
 		abortedTransactions.add(transactionId);
 
 		// Undo all ops.
-		RMHashMap image = readImage(transactionId);
-		synchronized(m_data) {
-			for (String key : image.keySet()) {
-				m_data.put(key, image.get(key));
+		if (hasImage(transactionId)) {
+			RMHashMap image = readImage(transactionId);
+			synchronized(m_data) {
+				for (String key : image.keySet()) {
+					m_data.put(key, image.get(key));
+				}
 			}
 		}
 		// Delete transaction from log

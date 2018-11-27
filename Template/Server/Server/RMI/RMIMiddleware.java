@@ -14,6 +14,7 @@ import java.util.*;
 import java.rmi.registry.Registry;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.RemoteException;
+import java.rmi.ConnectException;
 import java.rmi.server.UnicastRemoteObject;
 
 public class RMIMiddleware extends Middleware
@@ -28,27 +29,12 @@ public class RMIMiddleware extends Middleware
 		if (args.length > 2) {
 			String[] names = {"Cars", "Flights", "Rooms"};
 			s_resourceManagers = new HashMap();
+			RMServers = new HashMap();
 			try {
 				System.out.println("try to connect to resource managers");
 				for (int i = 0; i < 3; i++) {
 					//connect to 4 RMs
-					boolean first = true;
-					while (true) {
-						try {
-							System.out.println("Trying to connect to " + names[i]);
-							Registry registry = LocateRegistry.getRegistry(args[i], s_serverPort);
-							s_resourceManagers.put(names[i], (IResourceManager)registry.lookup(s_rmiPrefix + names[i]));
-							System.out.println("Connected to '" + names[i] + "' server [" + args[i] + ":" + s_serverPort + "/" + s_rmiPrefix + names[i] + "]");
-							break;
-						}
-						catch (NotBoundException|RemoteException e) {
-							if (first) {
-								System.out.println("Waiting for '" + names[i] + "' server [" + args[i] + ":" + s_serverPort + "/" + s_rmiPrefix + names[i] + "]");
-								first = false;
-							}
-						}
-						Thread.sleep(500);
-					}
+					connectRM(args[i], names[i]);
 				}
 			}
 			catch (Exception e) {
@@ -111,5 +97,65 @@ public class RMIMiddleware extends Middleware
 	public RMIMiddleware(String name)
 	{
 		super(name);
+	}	
+
+	private static void connectRM(String server, String name) {
+		try {
+			boolean first = true;
+			while (true) {
+				try {
+					System.out.println("Trying to connect to " + name);
+					Registry registry = LocateRegistry.getRegistry(server, s_serverPort);
+					s_resourceManagers.put(name, (IResourceManager)registry.lookup(s_rmiPrefix + name));
+					RMServers.put(name, server);
+					System.out.println("Connected to '" + name + "' server [" + server + ":" + s_serverPort + "/" + s_rmiPrefix + name + "]");
+					break;
+				}
+				catch (NotBoundException|RemoteException e) {
+					if (first) {
+						System.out.println("Waiting for '" + name + "' server [" + server + ":" + s_serverPort + "/" + s_rmiPrefix + name + "]");
+						first = false;
+					}
+				}
+				Thread.sleep(500);
+			}
+		}
+		catch (Exception e) {
+			System.err.println((char)27 + "[31;1mServer exception: " + (char)27 + "[0mUncaught exception");
+			e.printStackTrace();
+			System.exit(1);
+		}
+	}
+
+	private void testAndReconnectRMS() throws RemoteException {
+		String trying = "Cars";
+		try {
+			car_Manager.start(); // Just a ping() method
+			trying = "Flights";
+			flight_Manager.start(); // Just a ping() method
+			trying = "Rooms";
+			room_Manager.start(); // Just a ping() method
+		}
+		catch (ConnectException e) {
+			Trace.info("Reconnecting to " + trying + " Manager");
+			connectRM((String)RMServers.get(trying), trying);
+			if (trying.equals("Cars")) {
+				car_Manager = (IResourceManager)s_resourceManagers.get(trying);
+			}
+			if (trying.equals("Flights")) {
+				flight_Manager = (IResourceManager)s_resourceManagers.get(trying);
+			}
+			if (trying.equals("Rooms")) {
+				room_Manager = (IResourceManager)s_resourceManagers.get(trying);
+			}
+
+			testAndReconnectRMS(); // Recurse in case more than 1 RM is down
+		}
+	}
+
+	public boolean newCustomer(int xid, int customerID) throws RemoteException,TransactionAbortedException,InvalidTransactionException
+	{
+		testAndReconnectRMS();
+		return super.newCustomer(xid, customerID);
 	}
 }
