@@ -32,6 +32,7 @@ public class Middleware implements IResourceManager
 	
 	//resource managers 
 	protected static HashMap s_resourceManagers;
+	protected static HashMap RMServers;
 	//client IDs
 	protected static IResourceManager car_Manager = null;
 	protected static IResourceManager flight_Manager = null;

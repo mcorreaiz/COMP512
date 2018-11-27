@@ -30,6 +30,7 @@ public class RMIMiddleware extends Middleware
 		if (args.length > 2) {
 			String[] names = {"Cars", "Flights", "Rooms"};
 			s_resourceManagers = new HashMap();
+			RMServers = new HashMap();
 			try {
 				System.out.println("try to connect to resource managers");
 				for (int i = 0; i < 3; i++) {
