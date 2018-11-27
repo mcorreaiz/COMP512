@@ -36,7 +36,9 @@ public class ResourceManager implements IResourceManager
 	protected static HashMap<Integer, Transaction> persistLog = new HashMap<Integer, Transaction>();
 
 	private String masterRecordFile = "/tmp/masterRecord.ser";
-	private String dbCommittedFile = "/tmp/dbCommitted.ser";
+	private String dbAFile = "/tmp/dbA.ser";
+	private String dbBFile = "/tmp/dbB.ser";
+	private String dbCommittedFile = dbAFile;
 	private String logFile = "/tmp/log.ser";
 
 	/**
@@ -60,13 +62,13 @@ public class ResourceManager implements IResourceManager
 				committedData = (RMHashMap) in.readObject();
 				in.close();
 				fileIn.close();
-				System.out.println("Read last committed data:\n" + committedData);
+				System.out.println("Read last committed data:\n" + committedData + "\n");
 
 			}
 			else
 			{
 				committedData = (RMHashMap)this.m_data.clone();
-				System.out.println("create first version of committed data\n" + committedData);
+				System.out.println("create first version of committed data\n" + committedData + "\n");
 			}
 			
 		} catch (IOException i) {
@@ -76,15 +78,17 @@ public class ResourceManager implements IResourceManager
 		}
 
 		// Write only the corresponding data
-		RMHashMap image = readImage(xid);
-		for (String key : image.keySet()) {
-			RMItem item = readData(xid, key);
-			committedData.put(key, item);
+		if (hasImage(xid)) {
+			RMHashMap image = readImage(xid);
+			for (String key : image.keySet()) {
+				RMItem item = readData(xid, key);
+				committedData.put(key, item);
+			}
 		}
 
 		// Create and write dbFile in-progress
 		try {
-			FileOutputStream fileOut = new FileOutputStream(getTxFilename(xid));
+			FileOutputStream fileOut = new FileOutputStream(getInProgressFilename());
 			ObjectOutputStream out = new ObjectOutputStream(fileOut);
 			out.writeObject(committedData);
 			out.close();
@@ -92,7 +96,7 @@ public class ResourceManager implements IResourceManager
 		} catch (IOException i) {
 			i.printStackTrace();
 		}
-		System.out.println("Write updated ready-to-commit data:\n" + committedData);
+		System.out.println("Write updated ready-to-commit data:\n" + committedData + "\n");
 
 		writeLog(xid, "yes");
 
@@ -138,9 +142,14 @@ public class ResourceManager implements IResourceManager
 		m_name = p_name;
 		masterRecordFile = m_name + masterRecordFile;
 		dbCommittedFile = m_name + dbCommittedFile;
+		dbAFile = m_name + dbAFile;
+		dbBFile = m_name + dbBFile;
 		logFile = m_name + logFile;
+
+		// Recovery
 		checkOrCreateFiles();
-		restoreMasterRecord();
+		restoreDB();
+		restartProtocal();
 	}
 
 	private void checkOrCreateFiles() {
@@ -152,24 +161,31 @@ public class ResourceManager implements IResourceManager
 				tmpFile.getParentFile().mkdirs();
 				tmpFile.createNewFile();
 				Trace.info("new persistent master record created at " + tmpFile.getParentFile().getAbsolutePath());
-				File tmpFile2 = new File(dbCommittedFile);
+
+				File tmpFile2 = new File(dbAFile);
 				if (!tmpFile2.exists()) 
 				{               
 					tmpFile2.getParentFile().mkdirs();
 					tmpFile2.createNewFile();
-					//Trace.info("new persistent commitedFile created at " + tmpFile2.getParentFile().getAbsolutePath());
 				}
-				
-				//create the persistant logs
-				File tmpFile3 = new File(logFile);
+
+				File tmpFile3 = new File(dbBFile);
 				if (!tmpFile3.exists()) 
 				{               
 					tmpFile3.getParentFile().mkdirs();
 					tmpFile3.createNewFile();
 				}
+				
+				//create the persistant logs
+				File tmpFile4 = new File(logFile);
+				if (!tmpFile4.exists()) 
+				{               
+					tmpFile4.getParentFile().mkdirs();
+					tmpFile4.createNewFile();
+				}
 
 			}
-			else{
+			else {
 				Trace.info("persistent master record exists at " + tmpFile.getParentFile().getAbsolutePath());
 			}
 		} catch (IOException e) {
@@ -177,7 +193,7 @@ public class ResourceManager implements IResourceManager
 		}
 	}
 
-	private void restoreMasterRecord() {
+	private void restoreDB() {
 		HashMap hm = null;
 
 		try {
@@ -205,20 +221,6 @@ public class ResourceManager implements IResourceManager
 					in.close();
 					fileIn.close();
 				}
-
-				// Restore logs
-				fileIn = new FileInputStream(logFile);
-				if (fileIn.available() > 0)
-				{
-					in = new ObjectInputStream(fileIn);
-					persistLog = (HashMap<Integer,Transaction>) in.readObject();
-					in.close();
-					fileIn.close();
-					restartProtocal();
-				}
-				for (int key : persistLog.keySet()) {
-					System.out.println("TID=" + key + ": " + persistLog.get(key));
-				}
 			}			
 		} 
 		catch (IOException i) {
@@ -232,7 +234,7 @@ public class ResourceManager implements IResourceManager
 	private void updateMasterRecord(int xid) {
 		HashMap hm = new HashMap<String, String>();
 		hm.put("tid", Integer.toString(xid));
-		hm.put("filename", getTxFilename(xid));
+		hm.put("filename", getInProgressFilename());
 
 		try {
 			FileOutputStream fileOut = new FileOutputStream(masterRecordFile);
@@ -294,7 +296,56 @@ public class ResourceManager implements IResourceManager
 	}
 
 	private void restartProtocal() {
+		// Load the Log
+		try {
+			FileInputStream fileIn = new FileInputStream(logFile);
+			if (fileIn.available() > 0)
+			{
+				ObjectInputStream in = new ObjectInputStream(fileIn);
+				persistLog = (HashMap<Integer, Transaction>) in.readObject();
+				in.close();
+				fileIn.close();
+				Trace.info("Loaded log Files");
+			}
+			for (int key : persistLog.keySet()) {
+				System.out.println("TID=" + key + ": " + persistLog.get(key));
+			}			
+		} 
+		catch (IOException i) 
+		{
+			i.printStackTrace();
+		} 
+		catch (ClassNotFoundException c) 
+		{
+			System.out.println("Class not found");
+			c.printStackTrace();
+		}
 
+		// Operate accordingly for each log
+		try {
+			if (persistLog.size()>0){
+				for ( Integer key : persistLog.keySet() ) {
+					Transaction txn = persistLog.remove(key);
+					String logMsg = txn.latestLog();
+					Trace.info("Log Message [tid=" + txn.xid + "]: " + logMsg);
+					if (logMsg.equals("Empty")){
+						abort(txn.xid);
+					}
+					else if (logMsg.equals("yes")){
+						// Ask MW?
+					}
+					else if (logMsg.equals("abort")){
+						abort(txn.xid);
+					}
+					else if (logMsg.equals("commit")){
+						commit(txn.xid);
+					}
+				}
+			}
+		}
+		catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 
 	private void writeImage(int xid, String key, RMItem value)
@@ -306,7 +357,6 @@ public class ResourceManager implements IResourceManager
 			} else {
 				hm.put(key, (RMItem)value.clone());
 			}
-			System.out.println(key + value);
 			beforeImageLog.put(xid, hm);
 		}
 	}
@@ -339,9 +389,12 @@ public class ResourceManager implements IResourceManager
 		}
 	}
 
-	//use xid is smart
-	private String getTxFilename(int xid) {
-		return m_name + "/tmp/dbInProgress" + xid + ".ser";
+	private String getInProgressFilename() {
+		if (dbCommittedFile.equals(dbAFile)) {
+			return dbBFile;
+		} else {
+			return dbAFile;
+		}
 	}
 
 	public int start() throws RemoteException
@@ -350,16 +403,17 @@ public class ResourceManager implements IResourceManager
 	}
 
 	private void startTx(int xid) {
+		// Start Tx timer and beforeImage
 		addImage(xid);
 		startedTransactions.add(xid);
 		startTimer(xid);
 
-		File tmpFile = new File(getTxFilename(xid));
-		try {
-			tmpFile.createNewFile();
-		} catch (IOException i) {
-			i.printStackTrace();
-		}
+		// File tmpFile = new File(getTxFilename(xid));
+		// try {
+		// 	tmpFile.createNewFile();
+		// } catch (IOException i) {
+		// 	i.printStackTrace();
+		// }
 		
 		//add a new transaction Log
 		writeLog(xid, "");
@@ -375,15 +429,6 @@ public class ResourceManager implements IResourceManager
 
 			//update master record to point to the current committed version
 			updateMasterRecord(transactionId);
-			
-			// Delete old file
-			if (!dbCommittedFile.equals(getTxFilename(transactionId))) {
-				File file = new File(dbCommittedFile);
-				if (file.delete()){
-					System.out.println(dbCommittedFile + " File deleted");
-				}
-				dbCommittedFile = getTxFilename(transactionId);
-			}
 
 			removeImage(transactionId);
 			killTimer(transactionId);
@@ -402,11 +447,12 @@ public class ResourceManager implements IResourceManager
 		abortedTransactions.add(transactionId);
 
 		// Undo all ops.
-		RMHashMap image = readImage(transactionId);
-		synchronized(m_data) {
-			for (String key : image.keySet()) {
-				System.out.println(key + image.get(key));
-				m_data.put(key, image.get(key));
+		if (hasImage(transactionId)) {
+			RMHashMap image = readImage(transactionId);
+			synchronized(m_data) {
+				for (String key : image.keySet()) {
+					m_data.put(key, image.get(key));
+				}
 			}
 		}
 		// Delete transaction from log
@@ -415,13 +461,6 @@ public class ResourceManager implements IResourceManager
 		removeTimer(transactionId);
 		lockManager.UnlockAll(transactionId);
 
-		// Delete transaction File
-		if (!dbCommittedFile.equals(getTxFilename(transactionId))) {
-			File file = new File(getTxFilename(transactionId));
-			if (file.delete()){
-				System.out.println(getTxFilename(transactionId) + " File deleted");
-			}
-		}
 		deleteLog(transactionId);		
 	}
 
