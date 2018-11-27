@@ -38,7 +38,9 @@ public class Middleware implements IResourceManager
 	protected static IResourceManager room_Manager = null;
 
 	private String masterRecordFile = "/tmp/masterRecord.ser";
-	private String dbCommittedFile = "/tmp/A.ser";
+	private String dbAFile = "/tmp/dbA.ser";
+	private String dbBFile = "/tmp/dbB.ser";
+	private String dbCommittedFile = dbAFile;
 	private String logFile = "/tmp/log.ser";
 
 
@@ -134,6 +136,8 @@ public class Middleware implements IResourceManager
 		
 		masterRecordFile = m_name + masterRecordFile;
 		dbCommittedFile = m_name + dbCommittedFile;
+		dbAFile = m_name + dbAFile;
+		dbBFile = m_name + dbBFile;
 		logFile = m_name + logFile;
 		checkOrCreateFiles();
 		if (CRASHMODE == 8){
@@ -153,19 +157,27 @@ public class Middleware implements IResourceManager
 				tmpFile.getParentFile().mkdirs();
 				tmpFile.createNewFile();
 				Trace.info("new persistent master record created at " + tmpFile.getParentFile().getAbsolutePath());
-				File tmpFile2 = new File(dbCommittedFile);
+
+				File tmpFile2 = new File(dbAFile);
 				if (!tmpFile2.exists()) 
 				{               
 					tmpFile2.getParentFile().mkdirs();
 					tmpFile2.createNewFile();
 				}
 
-				//create the persistant logs
-				File tmpFile3 = new File(logFile);
+				File tmpFile3 = new File(dbBFile);
 				if (!tmpFile3.exists()) 
 				{               
 					tmpFile3.getParentFile().mkdirs();
 					tmpFile3.createNewFile();
+				}
+
+				//create the persistant logs
+				File tmpFile4 = new File(logFile);
+				if (!tmpFile4.exists()) 
+				{               
+					tmpFile4.getParentFile().mkdirs();
+					tmpFile4.createNewFile();
 				}
 			}
 			else{
@@ -210,14 +222,14 @@ public class Middleware implements IResourceManager
 				in.close();
 				fileIn.close();
 				int tid = Integer.parseInt(hm.get("tid").toString());
-				Trace.info("tid is" + tid);
+				Trace.info("tid is " + tid);
 				dbCommittedFile = hm.get("filename").toString();
 				Trace.info("reading committed db file at " + dbCommittedFile);
 				fileIn = new FileInputStream(dbCommittedFile);
 				if (fileIn.available() > 0){
 					in = new ObjectInputStream(fileIn);
 					coor = (Coordination) in.readObject();
-					Trace.info("Data recovered:\n");
+					Trace.info("Data recovered:\n" + coor);
 
 					//restore the important information
 					highestXid = Integer.valueOf(coor.highestXid.intValue());
@@ -242,7 +254,7 @@ public class Middleware implements IResourceManager
 	private void updateMasterRecord(int xid) {
 		HashMap hm = new HashMap<String, String>();
 		hm.put("tid", Integer.toString(xid));
-		hm.put("filename", getTxFilename(xid));
+		hm.put("filename", getInProgressFilename());
 
 		try 
 		{
@@ -355,10 +367,12 @@ public class Middleware implements IResourceManager
 		}
 	}
 
-
-	private String getTxFilename(int xid) 
-	{
-		return m_name + "/tmp/dbInProgress" + xid + ".ser";
+	private String getInProgressFilename() {
+		if (dbCommittedFile.equals(dbAFile)) {
+			return dbBFile;
+		} else {
+			return dbAFile;
+		}
 	}
 
 	private void writeLog(int xid, String log)
@@ -441,7 +455,7 @@ public class Middleware implements IResourceManager
 			Coordination committedData = new Coordination(highestXid,transactionInfo,abortedT);
 			// Create and write dbFile in-progress
 			try {
-				FileOutputStream fileOut = new FileOutputStream(getTxFilename(transactionId));
+				FileOutputStream fileOut = new FileOutputStream(getInProgressFilename());
 				ObjectOutputStream out = new ObjectOutputStream(fileOut);
 				out.writeObject(committedData);
 				out.close();
@@ -453,14 +467,8 @@ public class Middleware implements IResourceManager
 
 			//update master record to point to the current committed version
 			updateMasterRecord(transactionId);
-			//remove existing 
-			File file = new File(dbCommittedFile);
-			if (!dbCommittedFile.equals(getTxFilename(transactionId))){
-				if(file.delete()){
-					System.out.println(dbCommittedFile + " File deleted");
-				}	
-			}
-			dbCommittedFile = getTxFilename(transactionId);
+			
+			dbCommittedFile = getInProgressFilename();
 			removeTransaction(transactionId);
 			removeLog(transactionId);
 			return success;
@@ -616,9 +624,9 @@ public class Middleware implements IResourceManager
 		//persist the middleware hashmaps
 		//only create shadow copy when abort is completed
 		Coordination committedData = new Coordination(highestXid,transactionInfo,abortedT);
-		// Create and write dbFile in-progress
+		// Create and write Coordination
 		try {
-			FileOutputStream fileOut = new FileOutputStream(getTxFilename(transactionId));
+			FileOutputStream fileOut = new FileOutputStream(getInProgressFilename());
 			ObjectOutputStream out = new ObjectOutputStream(fileOut);
 			out.writeObject(committedData);
 			out.close();
@@ -630,14 +638,8 @@ public class Middleware implements IResourceManager
 
 		//update master record to point to the current committed version
 		updateMasterRecord(transactionId);
-		//remove existing 
-		File file = new File(dbCommittedFile);
-		if (!dbCommittedFile.equals(getTxFilename(transactionId))){
-			if(file.delete()){
-				System.out.println(dbCommittedFile + " File deleted");
-			}
-		}
-		dbCommittedFile = getTxFilename(transactionId);
+		
+		dbCommittedFile = getInProgressFilename();
 		removeLog(transactionId);
 	}
 

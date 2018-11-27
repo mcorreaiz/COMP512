@@ -317,7 +317,6 @@ public class ResourceManager implements IResourceManager
 			} else {
 				hm.put(key, (RMItem)value.clone());
 			}
-			System.out.println(key + value);
 			beforeImageLog.put(xid, hm);
 		}
 	}
@@ -411,7 +410,6 @@ public class ResourceManager implements IResourceManager
 		RMHashMap image = readImage(transactionId);
 		synchronized(m_data) {
 			for (String key : image.keySet()) {
-				System.out.println(key + image.get(key));
 				m_data.put(key, image.get(key));
 			}
 		}
