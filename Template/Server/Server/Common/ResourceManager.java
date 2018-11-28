@@ -49,15 +49,14 @@ public class ResourceManager implements IResourceManager
     public boolean prepare(int xid)
 	throws RemoteException, TransactionAbortedException, InvalidTransactionException
 	{
+		if (!persistLog.containsKey(xid)) return false;
+
 		if (CRASHMODE == 1){
 			System.exit(1);
 		}
 
 		// Check if transaction was aborted
-		if (abortedTransactions.contains(xid)) {
-			writeLog(xid, "abort");
-			return false;
-		}
+		if (abortedTransactions.contains(xid)) return false;
 		
 		// Read last comitted copy of db
 		RMHashMap committedData = null;
@@ -91,6 +90,15 @@ public class ResourceManager implements IResourceManager
 				RMItem item = readData(xid, key);
 				committedData.put(key, item);
 			}
+		}
+		else if (persistLog.containsKey(xid)) {
+			// Committing from a recently read log
+			RMHashMap image = persistLog.get(xid).data;
+			for (String key : image.keySet()) {
+				committedData.put(key, image.get(key));
+				writeData(xid, key, image.get(key));
+			}
+
 		}
 
 		// Create and write dbFile in-progress
@@ -291,7 +299,7 @@ public class ResourceManager implements IResourceManager
 		//Trace.info("Updated Log Files:\n");
 	}
 
-	private void writeLog(int xid, String log)
+	private void writeLog(int xid, String log) throws TransactionAbortedException, InvalidTransactionException
 	{
 		synchronized(persistLog) {
 			//create new log
@@ -301,10 +309,20 @@ public class ResourceManager implements IResourceManager
 			}
 			//updating existing log
 			else {
+				RMHashMap afterImage = new RMHashMap();
+				if (hasImage(xid)) {
+					RMHashMap image = readImage(xid);
+					for (String key : image.keySet()) {
+						RMItem item = readData(xid, key);
+						afterImage.put(key, item);
+					}
+				}
+
 				Transaction txn = (Transaction)persistLog.get(xid);
 				txn.addLog(log);
+				txn.setData(afterImage);
 				persistLog.put(xid,txn);
-				Trace.info("Transaction " + xid + " has been logged: " + log);
+				Trace.info("Transaction " + xid + " has been logged: " + log + "\nData:\n" + afterImage);
 			}
 		}
 		persistLogFile();
@@ -322,6 +340,7 @@ public class ResourceManager implements IResourceManager
 	}
 
 	private void restartProtocal() {
+		// Keep in mind: DB is already restored!
 
 		if (CRASHMODE == 5){
 			System.exit(1);
@@ -433,19 +452,13 @@ public class ResourceManager implements IResourceManager
 		return 512;
 	}
 
-	private void startTx(int xid) {
+	private void startTx(int xid) throws TransactionAbortedException, InvalidTransactionException
+	{
 		// Start Tx timer and beforeImage
 		addImage(xid);
 		startedTransactions.add(xid);
 		startTimer(xid);
 
-		// File tmpFile = new File(getTxFilename(xid));
-		// try {
-		// 	tmpFile.createNewFile();
-		// } catch (IOException i) {
-		// 	i.printStackTrace();
-		// }
-		
 		//add a new transaction Log
 		writeLog(xid, "");
 	}
@@ -454,6 +467,8 @@ public class ResourceManager implements IResourceManager
 	{
 		// Delete transaction from log
 		Trace.info("RM::commit(" + transactionId + ") called");
+
+		if (!persistLog.containsKey(transactionId)) return false;
 
 		if (hasImage(transactionId)) {
 			writeLog(transactionId, "commit");
@@ -478,7 +493,10 @@ public class ResourceManager implements IResourceManager
 		Trace.info("RM::abort(" + transactionId + ") called");
 
 		if (abortedTransactions.contains(transactionId)) return;
-		writeLog(transactionId, "abort");
+		try{
+			writeLog(transactionId, "abort");
+		}
+		catch (TransactionAbortedException e){		}
 
 		if (CRASHMODE == 4){
 			System.exit(1);
@@ -568,7 +586,6 @@ public class ResourceManager implements IResourceManager
 		synchronized(m_data) {
 			if (!readImage(xid).containsKey(key)) {
 				RMItem item = readData(xid, key);
-				System.out.println("Write log");
 				writeImage(xid, key, item);
 			}
 			m_data.put(key, value);

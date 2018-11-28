@@ -108,14 +108,14 @@ public class Middleware implements IResourceManager
 	}
 
     public void crashResourceManager(String name /* RM Name */, int mode) throws RemoteException{
-		if (name.equals("car")){
-			car_Manager.crashResourceManager("car", mode);
+		if (name.equals("Cars")){
+			car_Manager.crashResourceManager("Cars", mode);
 		}
-		else if(name.equals("flight")){
-			flight_Manager.crashResourceManager("flight", mode);
+		else if(name.equals("Flights")){
+			flight_Manager.crashResourceManager("Flights", mode);
 		}
-		else if(name.equals("room")){
-			room_Manager.crashResourceManager("room", mode);
+		else if(name.equals("Rooms")){
+			room_Manager.crashResourceManager("Rooms", mode);
 		}
 	}
 	

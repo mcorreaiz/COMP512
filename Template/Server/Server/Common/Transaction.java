@@ -23,6 +23,11 @@ public class Transaction implements Serializable
 		StatusLog.add(status);
 	}
 
+	public void setData(RMHashMap _data)
+	{
+		data = _data;
+	}
+
 	public String latestLog()
 	{
 		if(StatusLog.size() == 0){
