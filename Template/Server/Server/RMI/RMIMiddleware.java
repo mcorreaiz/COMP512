@@ -154,227 +154,227 @@ public class RMIMiddleware extends Middleware
 		}
 	}
 
-	public int start() 
-    throws RemoteException 
-	{
-		testAndReconnectRMS();
-		return super.start();
-	}
+	// public int start() 
+    // throws RemoteException 
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.start();
+	// }
 
-    public boolean commit(int transactionId) 
-    throws RemoteException, InvalidTransactionException, TransactionAbortedException
-	{
-		testAndReconnectRMS();
-		return super.commit(transactionId);
-	}
+    // public boolean commit(int transactionId) 
+    // throws RemoteException, InvalidTransactionException, TransactionAbortedException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.commit(transactionId);
+	// }
 
-    public void abort(int transactionId) 
-    throws RemoteException, InvalidTransactionException
-	{
-		testAndReconnectRMS();
-		super.abort(transactionId);
-	}
+    // public void abort(int transactionId) 
+    // throws RemoteException, InvalidTransactionException
+	// {
+	// 	testAndReconnectRMS();
+	// 	super.abort(transactionId);
+	// }
 
-    public boolean shutdown() 
-    throws RemoteException
-	{
-		testAndReconnectRMS();
-		return super.shutdown();
-	}
+    // public boolean shutdown() 
+    // throws RemoteException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.shutdown();
+	// }
 
-    public boolean addFlight(int id, int flightNum, int flightSeats, int flightPrice)
-	throws RemoteException, InvalidTransactionException, TransactionAbortedException
-	{
-		testAndReconnectRMS();
-		return super.addFlight(id, flightNum, flightSeats, flightPrice);
-	}
+    // public boolean addFlight(int id, int flightNum, int flightSeats, int flightPrice)
+	// throws RemoteException, InvalidTransactionException, TransactionAbortedException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.addFlight(id, flightNum, flightSeats, flightPrice);
+	// }
 
-    public boolean addCars(int id, String location, int numCars, int price)
-	throws RemoteException, InvalidTransactionException, TransactionAbortedException
-	{
-		testAndReconnectRMS();
-		return super.addCars(id, location, numCars, price);
-	}
+    // public boolean addCars(int id, String location, int numCars, int price)
+	// throws RemoteException, InvalidTransactionException, TransactionAbortedException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.addCars(id, location, numCars, price);
+	// }
 
-    public boolean addRooms(int id, String location, int numRooms, int price)
-	throws RemoteException, InvalidTransactionException, TransactionAbortedException
-	{
-		testAndReconnectRMS();
-		return super.addRooms(id, location, numRooms, price);
-	}
+    // public boolean addRooms(int id, String location, int numRooms, int price)
+	// throws RemoteException, InvalidTransactionException, TransactionAbortedException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.addRooms(id, location, numRooms, price);
+	// }
 
-    public int newCustomer(int id)
-	throws RemoteException, InvalidTransactionException, TransactionAbortedException
-	{
-		testAndReconnectRMS();
-		return super.newCustomer(id);
-	}
+    // public int newCustomer(int id)
+	// throws RemoteException, InvalidTransactionException, TransactionAbortedException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.newCustomer(id);
+	// }
 
-    public boolean newCustomer(int id, int cid)
-    throws RemoteException, InvalidTransactionException, TransactionAbortedException
-	{
-		testAndReconnectRMS();
-		return super.newCustomer(id, cid);
-	}
+    // public boolean newCustomer(int id, int cid)
+    // throws RemoteException, InvalidTransactionException, TransactionAbortedException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.newCustomer(id, cid);
+	// }
 
-    public boolean deleteFlight(int id, int flightNum)
-	throws RemoteException, InvalidTransactionException, TransactionAbortedException
-	{
-		testAndReconnectRMS();
-		return super.deleteFlight(id, flightNum);
-	}
+    // public boolean deleteFlight(int id, int flightNum)
+	// throws RemoteException, InvalidTransactionException, TransactionAbortedException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.deleteFlight(id, flightNum);
+	// }
 
-    public boolean deleteCars(int id, String location)
-	throws RemoteException, InvalidTransactionException, TransactionAbortedException
-	{
-		testAndReconnectRMS();
-		return super.deleteCars(id, location);
-	}
+    // public boolean deleteCars(int id, String location)
+	// throws RemoteException, InvalidTransactionException, TransactionAbortedException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.deleteCars(id, location);
+	// }
 
-    public boolean deleteRooms(int id, String location)
-	throws RemoteException, InvalidTransactionException, TransactionAbortedException
-	{
-		testAndReconnectRMS();
-		return super.deleteRooms(id, location);
-	}
+    // public boolean deleteRooms(int id, String location)
+	// throws RemoteException, InvalidTransactionException, TransactionAbortedException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.deleteRooms(id, location);
+	// }
 
-    public boolean deleteCustomer(int id, int customerID)
-	throws RemoteException, InvalidTransactionException, TransactionAbortedException
-	{
-		testAndReconnectRMS();
-		return super.deleteCustomer(id, customerID);
-	}
+    // public boolean deleteCustomer(int id, int customerID)
+	// throws RemoteException, InvalidTransactionException, TransactionAbortedException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.deleteCustomer(id, customerID);
+	// }
 
-    public int queryFlight(int id, int flightNumber)
-	throws RemoteException, InvalidTransactionException, TransactionAbortedException
-	{
-		testAndReconnectRMS();
-		return super.queryFlight(id, flightNumber);
-	}
+    // public int queryFlight(int id, int flightNumber)
+	// throws RemoteException, InvalidTransactionException, TransactionAbortedException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.queryFlight(id, flightNumber);
+	// }
 
-    public int queryCars(int id, String location)
-	throws RemoteException, InvalidTransactionException, TransactionAbortedException
-	{
-		testAndReconnectRMS();
-		return super.queryCars(id, location);
-	}
+    // public int queryCars(int id, String location)
+	// throws RemoteException, InvalidTransactionException, TransactionAbortedException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.queryCars(id, location);
+	// }
 
-    public int queryRooms(int id, String location)
-	throws RemoteException, InvalidTransactionException, TransactionAbortedException
-	{
-		testAndReconnectRMS();
-		return super.queryRooms(id, location);
-	}
+    // public int queryRooms(int id, String location)
+	// throws RemoteException, InvalidTransactionException, TransactionAbortedException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.queryRooms(id, location);
+	// }
 
-    public String queryCustomerInfo(int id, int customerID)
-	throws RemoteException, InvalidTransactionException, TransactionAbortedException
-	{
-		testAndReconnectRMS();
-		return super.queryCustomerInfo(id, customerID);
-	}
+    // public String queryCustomerInfo(int id, int customerID)
+	// throws RemoteException, InvalidTransactionException, TransactionAbortedException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.queryCustomerInfo(id, customerID);
+	// }
 
-    public int queryFlightPrice(int id, int flightNumber)
-	throws RemoteException, InvalidTransactionException, TransactionAbortedException
-	{
-		testAndReconnectRMS();
-		return super.queryFlightPrice(id, flightNumber);
-	}
+    // public int queryFlightPrice(int id, int flightNumber)
+	// throws RemoteException, InvalidTransactionException, TransactionAbortedException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.queryFlightPrice(id, flightNumber);
+	// }
 
-    public int queryCarsPrice(int id, String location)
-	throws RemoteException, InvalidTransactionException, TransactionAbortedException
-	{
-		testAndReconnectRMS();
-		return super.queryCarsPrice(id, location);
-	}
+    // public int queryCarsPrice(int id, String location)
+	// throws RemoteException, InvalidTransactionException, TransactionAbortedException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.queryCarsPrice(id, location);
+	// }
 
-    public int queryRoomsPrice(int id, String location)
-	throws RemoteException, InvalidTransactionException, TransactionAbortedException
-	{
-		testAndReconnectRMS();
-		return super.queryRoomsPrice(id, location);
-	}
+    // public int queryRoomsPrice(int id, String location)
+	// throws RemoteException, InvalidTransactionException, TransactionAbortedException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.queryRoomsPrice(id, location);
+	// }
 
-    public boolean reserveFlight(int id, int customerID, int flightNumber)
-	throws RemoteException, InvalidTransactionException, TransactionAbortedException
-	{
-		testAndReconnectRMS();
-		return super.reserveFlight(id, customerID, flightNumber);
-	}
+    // public boolean reserveFlight(int id, int customerID, int flightNumber)
+	// throws RemoteException, InvalidTransactionException, TransactionAbortedException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.reserveFlight(id, customerID, flightNumber);
+	// }
 
-    public boolean reserveCar(int id, int customerID, String location)
-	throws RemoteException, InvalidTransactionException, TransactionAbortedException
-	{
-		testAndReconnectRMS();
-		return super.reserveCar(id, customerID, location);
-	}
+    // public boolean reserveCar(int id, int customerID, String location)
+	// throws RemoteException, InvalidTransactionException, TransactionAbortedException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.reserveCar(id, customerID, location);
+	// }
 
-    public boolean reserveRoom(int id, int customerID, String location)
-	throws RemoteException, InvalidTransactionException, TransactionAbortedException
-	{
-		testAndReconnectRMS();
-		return super.reserveRoom(id, customerID, location);
-	}
+    // public boolean reserveRoom(int id, int customerID, String location)
+	// throws RemoteException, InvalidTransactionException, TransactionAbortedException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.reserveRoom(id, customerID, location);
+	// }
 
-	public boolean unreserveFlight(int xid, int customerID, int flightNum) 
-	throws RemoteException,TransactionAbortedException, InvalidTransactionException
-	{
-		testAndReconnectRMS();
-		return super.unreserveFlight(xid, customerID, flightNum);
-	}
+	// public boolean unreserveFlight(int xid, int customerID, int flightNum) 
+	// throws RemoteException,TransactionAbortedException, InvalidTransactionException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.unreserveFlight(xid, customerID, flightNum);
+	// }
 
-	public boolean unreserveCar(int xid, int customerID, String location) 
-	throws RemoteException,TransactionAbortedException, InvalidTransactionException
-	{
-		testAndReconnectRMS();
-		return super.unreserveCar(xid, customerID, location);
-	}
+	// public boolean unreserveCar(int xid, int customerID, String location) 
+	// throws RemoteException,TransactionAbortedException, InvalidTransactionException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.unreserveCar(xid, customerID, location);
+	// }
 
-	public boolean unreserveRoom(int xid, int customerID, String location) 
-	throws RemoteException,TransactionAbortedException, InvalidTransactionException
-	{
-		testAndReconnectRMS();
-		return super.unreserveRoom(xid, customerID, location);
-	}
+	// public boolean unreserveRoom(int xid, int customerID, String location) 
+	// throws RemoteException,TransactionAbortedException, InvalidTransactionException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.unreserveRoom(xid, customerID, location);
+	// }
 
-    public boolean bundle(int id, int customerID, Vector<String> flightNumbers, String location, boolean car, boolean room)
-	throws RemoteException, InvalidTransactionException, TransactionAbortedException
-	{
-		testAndReconnectRMS();
-		return super.bundle(id, customerID, flightNumbers, location, car, room);
-	}
+    // public boolean bundle(int id, int customerID, Vector<String> flightNumbers, String location, boolean car, boolean room)
+	// throws RemoteException, InvalidTransactionException, TransactionAbortedException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.bundle(id, customerID, flightNumbers, location, car, room);
+	// }
 
-    public String getName()
-    throws RemoteException
-	{
-		testAndReconnectRMS();
-		return super.getName();
-	}
+    // public String getName()
+    // throws RemoteException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.getName();
+	// }
 
-    public boolean prepare(int xid)
-    throws RemoteException, TransactionAbortedException, InvalidTransactionException
-	{
-		testAndReconnectRMS();
-		return super.prepare(xid);
-	}
+    // public boolean prepare(int xid)
+    // throws RemoteException, TransactionAbortedException, InvalidTransactionException
+	// {
+	// 	testAndReconnectRMS();
+	// 	return super.prepare(xid);
+	// }
 
-    public void resetCrashes()
-	throws RemoteException
-	{
-		testAndReconnectRMS();
-		super.resetCrashes();
-	}
+    // public void resetCrashes()
+	// throws RemoteException
+	// {
+	// 	testAndReconnectRMS();
+	// 	super.resetCrashes();
+	// }
 
-    public void crashMiddleware(int mode)
-	throws RemoteException
-	{
-		testAndReconnectRMS();
-		super.crashMiddleware(mode);
-	}
+    // public void crashMiddleware(int mode)
+	// throws RemoteException
+	// {
+	// 	testAndReconnectRMS();
+	// 	super.crashMiddleware(mode);
+	// }
 
-    public void crashResourceManager(String name /* RM Name */, int mode) 
-    throws RemoteException
-	{
-		testAndReconnectRMS();
-		super.crashResourceManager(name, mode);
-	}
+    // public void crashResourceManager(String name /* RM Name */, int mode) 
+    // throws RemoteException
+	// {
+	// 	testAndReconnectRMS();
+	// 	super.crashResourceManager(name, mode);
+	// }
 }
