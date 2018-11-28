@@ -58,61 +58,7 @@ public class ResourceManager implements IResourceManager
 		// Check if transaction was aborted
 		if (abortedTransactions.contains(xid)) return false;
 		
-		// Read last comitted copy of db
-		RMHashMap committedData = null;
-		try {
-			FileInputStream fileIn = new FileInputStream(dbCommittedFile);
-			if (fileIn.available() != 0)
-			{
-				ObjectInputStream in = new ObjectInputStream(fileIn);
-				committedData = (RMHashMap) in.readObject();
-				in.close();
-				fileIn.close();
-				System.out.println("Read last committed data:\n" + committedData + "\n");
-
-			}
-			else
-			{
-				committedData = (RMHashMap)this.m_data.clone();
-				System.out.println("create first version of committed data\n" + committedData + "\n");
-			}
-			
-		} catch (IOException i) {
-			i.printStackTrace();
-		} catch (ClassNotFoundException c) {
-			c.printStackTrace();
-		}
-
-		// Write only the corresponding data
-		if (hasImage(xid)) {
-			RMHashMap image = readImage(xid);
-			for (String key : image.keySet()) {
-				RMItem item = readData(xid, key);
-				committedData.put(key, item);
-			}
-		}
-		else if (persistLog.containsKey(xid)) {
-			// Committing from a recently read log
-			RMHashMap image = persistLog.get(xid).data;
-			for (String key : image.keySet()) {
-				committedData.put(key, image.get(key));
-				writeData(xid, key, image.get(key));
-			}
-
-		}
-
-		// Create and write dbFile in-progress
-		try {
-			FileOutputStream fileOut = new FileOutputStream(getInProgressFilename());
-			ObjectOutputStream out = new ObjectOutputStream(fileOut);
-			out.writeObject(committedData);
-			out.close();
-			fileOut.close();
-		} catch (IOException i) {
-			i.printStackTrace();
-		}
-		System.out.println("Write updated ready-to-commit data:\n" + committedData + "\n");
-
+		resetTimer(xid);
 		writeLog(xid, "yes");
 
 		if (CRASHMODE == 2){
@@ -137,6 +83,45 @@ public class ResourceManager implements IResourceManager
 		killTimer(xid);
 		removeTimer(xid);
 		return true;
+	}
+
+	public void persistDB(RMHashMap committedData) {
+		try {
+			FileOutputStream fileOut = new FileOutputStream(getInProgressFilename());
+			ObjectOutputStream out = new ObjectOutputStream(fileOut);
+			out.writeObject(committedData);
+			out.close();
+			fileOut.close();
+		} catch (IOException i) {
+			i.printStackTrace();
+		}
+		System.out.println("Write updated ready-to-commit data:\n" + committedData + "\n");
+	}
+
+	public RMHashMap readDB() {
+		RMHashMap committedData = null;
+		try {
+			FileInputStream fileIn = new FileInputStream(dbCommittedFile);
+			if (fileIn.available() != 0)
+			{
+				ObjectInputStream in = new ObjectInputStream(fileIn);
+				committedData = (RMHashMap) in.readObject();
+				in.close();
+				fileIn.close();
+				System.out.println("Read last committed data:\n" + committedData + "\n");
+
+			}
+			else
+			{
+				committedData = (RMHashMap)this.m_data.clone();
+				System.out.println("Create first version of committed data\n" + committedData + "\n");
+			}
+		} catch (IOException i) {
+			i.printStackTrace();
+		} catch (ClassNotFoundException c) {
+			c.printStackTrace();
+		}
+		return committedData;
 	}
 
     /**
@@ -166,7 +151,7 @@ public class ResourceManager implements IResourceManager
     public void crashResourceManager(String name /* RM Name */, int mode) 
 	throws RemoteException
 	{
-		Trace.info("Middleware::crashResourceManager" + mode);
+		Trace.info("RM::crashResourceManager with mode " + mode);
 		if (name.equals(m_name)){
 			CRASHMODE = mode;
 		}
@@ -309,20 +294,20 @@ public class ResourceManager implements IResourceManager
 			}
 			//updating existing log
 			else {
-				RMHashMap afterImage = new RMHashMap();
+				Transaction txn = (Transaction)persistLog.get(xid);
 				if (hasImage(xid)) {
+					RMHashMap afterImage = new RMHashMap();
 					RMHashMap image = readImage(xid);
 					for (String key : image.keySet()) {
 						RMItem item = readData(xid, key);
 						afterImage.put(key, item);
 					}
+					txn.setData(afterImage);
 				}
 
-				Transaction txn = (Transaction)persistLog.get(xid);
 				txn.addLog(log);
-				txn.setData(afterImage);
 				persistLog.put(xid,txn);
-				Trace.info("Transaction " + xid + " has been logged: " + log + "\nData:\n" + afterImage);
+				Trace.info("Transaction " + xid + " has been logged: " + log + "\nData:\n" + txn.data);
 			}
 		}
 		persistLogFile();
@@ -375,14 +360,18 @@ public class ResourceManager implements IResourceManager
 		try {
 			if (persistLog.size()>0){
 				for ( Integer key : persistLog.keySet() ) {
-					Transaction txn = persistLog.remove(key);
+					Transaction txn = persistLog.get(key);
 					String logMsg = txn.latestLog();
 					Trace.info("Log Message [tid=" + txn.xid + "]: " + logMsg);
+
+					startedTransactions.add(txn.xid);
+					recoverTxnData(txn);
+
 					if (logMsg.equals("Empty")){
 						abort(txn.xid);
 					}
 					else if (logMsg.equals("yes")){
-						startedTransactions.add(txn.xid);
+						// Wait...
 					}
 					else if (logMsg.equals("abort")){
 						abort(txn.xid);
@@ -395,6 +384,15 @@ public class ResourceManager implements IResourceManager
 		}
 		catch (Exception e) {
 			e.printStackTrace();
+		}
+	}
+
+	private void recoverTxnData(Transaction txn) throws TransactionAbortedException, InvalidTransactionException {
+		RMHashMap data = txn.data;
+		if (data == null) return;
+		for (String key : data.keySet()) {
+			RMItem item = data.get(key);
+			writeData(txn.xid, key, item);
 		}
 	}
 
@@ -477,13 +475,26 @@ public class ResourceManager implements IResourceManager
 				System.exit(1);
 			}
 
-			//update master record to point to the current committed version
+			// Read last comitted copy of db
+			RMHashMap committedData = readDB();
+
+			// And merge with this Txn's changes
+			RMHashMap image = persistLog.get(transactionId).data;
+			for (String key : image.keySet()) {
+				committedData.put(key, image.get(key));
+			}
+
+			// Write dbFile in-progress
+			persistDB(committedData);
+
+			// Update master record to point to the current committed version
 			updateMasterRecord(transactionId);
 
 			removeImage(transactionId);
-			killTimer(transactionId);
-			removeTimer(transactionId);
 		}
+
+		killTimer(transactionId);
+		removeTimer(transactionId);
 		deleteLog(transactionId);
 		return lockManager.UnlockAll(transactionId);
 	}
@@ -492,7 +503,8 @@ public class ResourceManager implements IResourceManager
 	{
 		Trace.info("RM::abort(" + transactionId + ") called");
 
-		if (abortedTransactions.contains(transactionId)) return;
+		if (!persistLog.containsKey(transactionId)) return;
+		
 		try{
 			writeLog(transactionId, "abort");
 		}
@@ -512,14 +524,14 @@ public class ResourceManager implements IResourceManager
 					m_data.put(key, image.get(key));
 				}
 			}
+			removeImage(transactionId);
 		}
+
 		// Delete transaction from log
-		removeImage(transactionId);
 		killTimer(transactionId);
 		removeTimer(transactionId);
+		deleteLog(transactionId);
 		lockManager.UnlockAll(transactionId);
-
-		deleteLog(transactionId);		
 	}
 
 	public boolean shutdown() throws RemoteException
@@ -542,10 +554,11 @@ public class ResourceManager implements IResourceManager
 	}
 
 	private void beforeFilter(int xid, String key, TransactionLockObject.LockType lock) throws TransactionAbortedException, InvalidTransactionException {
-		if (!hasImage(xid)) {
+		if (!persistLog.containsKey(xid)) {
 			if (startedTransactions.contains(xid))  {
 				// If there's no image for this Tx but it was once started, it means that it was committed/aborted
-				throw new InvalidTransactionException();
+				// Do nothing
+				return;
 			} else {
 				// Else, new transaction.
 				startTx(xid);
@@ -584,6 +597,7 @@ public class ResourceManager implements IResourceManager
 	{
 		beforeFilter(xid, key, TransactionLockObject.LockType.LOCK_WRITE);
 		synchronized(m_data) {
+			if (!hasImage(xid)) addImage(xid);
 			if (!readImage(xid).containsKey(key)) {
 				RMItem item = readData(xid, key);
 				writeImage(xid, key, item);
@@ -1054,7 +1068,7 @@ public class ResourceManager implements IResourceManager
 		return m_name;
 	}
 
-	// keeping track of middleware timeout 
+	// keeping track of resource manager timeout 
 	public class TimeOutThread implements Runnable {
 		private int xid = 0;
 
@@ -1077,16 +1091,16 @@ public class ResourceManager implements IResourceManager
 
 			try 
 			{
-				Trace.info("Middleware::Transaction" + Integer.toString(xid) + " connection timeout");
+				Trace.info("RM::Transaction" + Integer.toString(xid) + " connection timeout");
 				abort(this.xid);
 			} 
 			catch (InvalidTransactionException e) 
 			{
-				Trace.info("Middleware::Transaction" + Integer.toString(xid) + " is no longer valid.");
+				Trace.info("RM::Transaction" + Integer.toString(xid) + " is no longer valid.");
 			} 
 			catch (RemoteException e) 
 			{
-				Trace.info("Middleware::Transaction" + Integer.toString(xid) + " has remote exception");
+				Trace.info("RM::Transaction" + Integer.toString(xid) + " has remote exception");
 			}
 		}
 	}
