@@ -41,6 +41,20 @@ public class ResourceManager implements IResourceManager
 	private String dbCommittedFile = dbAFile;
 	private String logFile = "/tmp/log.ser";
 
+	public ResourceManager(String p_name) {
+		m_name = p_name;
+		masterRecordFile = m_name + masterRecordFile;
+		dbCommittedFile = m_name + dbCommittedFile;
+		dbAFile = m_name + dbAFile;
+		dbBFile = m_name + dbBFile;
+		logFile = m_name + logFile;
+
+		// Recovery
+		checkOrCreateFiles();
+		restoreDB();
+		restartProtocal();
+	}
+
 	/**
      * The voting request method for 2PC 
      * @return boolean
@@ -85,7 +99,7 @@ public class ResourceManager implements IResourceManager
 		return true;
 	}
 
-	public void persistDB(RMHashMap committedData) {
+	public void persistDB(StoreableRM committedData) {
 		try {
 			FileOutputStream fileOut = new FileOutputStream(getInProgressFilename());
 			ObjectOutputStream out = new ObjectOutputStream(fileOut);
@@ -95,26 +109,26 @@ public class ResourceManager implements IResourceManager
 		} catch (IOException i) {
 			i.printStackTrace();
 		}
-		System.out.println("Write updated ready-to-commit data:\n" + committedData + "\n");
+		System.out.println("Write updated ready-to-commit data:\n" + committedData.getData() + "\n");
 	}
 
-	public RMHashMap readDB() {
-		RMHashMap committedData = null;
+	public StoreableRM readDB() {
+		StoreableRM committedData = null;
 		try {
 			FileInputStream fileIn = new FileInputStream(dbCommittedFile);
 			if (fileIn.available() != 0)
 			{
 				ObjectInputStream in = new ObjectInputStream(fileIn);
-				committedData = (RMHashMap) in.readObject();
+				committedData = (StoreableRM) in.readObject();
 				in.close();
 				fileIn.close();
-				System.out.println("Read last committed data:\n" + committedData + "\n");
+				System.out.println("Read last committed data:\n" + committedData.getData() + "\n");
 
 			}
 			else
 			{
-				committedData = (RMHashMap)this.m_data.clone();
-				System.out.println("Create first version of committed data\n" + committedData + "\n");
+				committedData = new StoreableRM((RMHashMap)m_data.clone(), (HashSet)startedTransactions.clone(), (HashSet)abortedTransactions.clone());;
+				System.out.println("Create first version of committed data\n" + committedData.getData() + "\n");
 			}
 		} catch (IOException i) {
 			i.printStackTrace();
@@ -155,20 +169,6 @@ public class ResourceManager implements IResourceManager
 		if (name.equals(m_name)){
 			CRASHMODE = mode;
 		}
-	}
-
-	public ResourceManager(String p_name) {
-		m_name = p_name;
-		masterRecordFile = m_name + masterRecordFile;
-		dbCommittedFile = m_name + dbCommittedFile;
-		dbAFile = m_name + dbAFile;
-		dbBFile = m_name + dbBFile;
-		logFile = m_name + logFile;
-
-		// Recovery
-		checkOrCreateFiles();
-		restoreDB();
-		restartProtocal();
 	}
 
 	private void checkOrCreateFiles() {
@@ -214,6 +214,7 @@ public class ResourceManager implements IResourceManager
 
 	private void restoreDB() {
 		HashMap hm = null;
+		StoreableRM rm = null;
 
 		try {
 			// Restore master record
@@ -231,11 +232,15 @@ public class ResourceManager implements IResourceManager
 				Trace.info("reading committed db file at " + dbCommittedFile);
 
 				// Restore db file
+
 				fileIn = new FileInputStream(dbCommittedFile);
 				if (fileIn.available() > 0)
 				{
 					in = new ObjectInputStream(fileIn);
-					m_data = (RMHashMap) in.readObject(); // Restore
+					rm = (StoreableRM) in.readObject(); // Restore
+					m_data = rm.getData();
+					abortedTransactions = rm.getAbortedT();
+					startedTransactions = rm.getStartedT();
 					Trace.info("Data recovered:\n" + m_data);
 					in.close();
 					fileIn.close();
@@ -322,6 +327,7 @@ public class ResourceManager implements IResourceManager
 		synchronized (persistLog) {
 			persistLog.remove(xid);
 		}
+		persistLogFile();
 	}
 
 	private void restartProtocal() {
@@ -476,12 +482,12 @@ public class ResourceManager implements IResourceManager
 			}
 
 			// Read last comitted copy of db
-			RMHashMap committedData = readDB();
+			StoreableRM committedData = readDB();
 
 			// And merge with this Txn's changes
 			RMHashMap image = persistLog.get(transactionId).data;
 			for (String key : image.keySet()) {
-				committedData.put(key, image.get(key));
+				committedData.addData(key, image.get(key));
 			}
 
 			// Write dbFile in-progress
