@@ -720,9 +720,38 @@ public class Middleware implements IResourceManager
 		}
 	}
 
+	private static void connectRM(String server, String name) { }
+
 	// this transaction is associated with car_manager
 	private void associateManager(int xid, String manager) throws RemoteException
 	{
+		try {
+			if (manager.equals("car")) {
+				car_Manager.start(); // just a ping method
+			}
+			else if (manager.equals("flight")) {
+				flight_Manager.start(); // just a ping method
+			}
+			else if (manager.equals("room")) {
+				room_Manager.start(); // just a ping method
+			}
+		}
+		catch (ConnectException e) {
+			Trace.info("Reconnecting to " + manager + " Manager");
+			if (manager.equals("car")) {
+				connectRM((String)RMServers.get("Cars"), "Cars");
+				car_Manager = (IResourceManager)s_resourceManagers.get("Cars");
+			}
+			else if (manager.equals("flight")) {
+				connectRM((String)RMServers.get("Flights"), "Flights");
+				flight_Manager = (IResourceManager)s_resourceManagers.get("Flights");
+			}
+			else if (manager.equals("room")) {
+				connectRM((String)RMServers.get("Rooms"), "Rooms");
+				room_Manager = (IResourceManager)s_resourceManagers.get("Rooms");
+			}
+		}
+
 		String existing = readTransaction(xid);
 		// if the manager is not already associated, add it to the association
 		if (existing.indexOf(manager) == -1)
