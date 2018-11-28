@@ -49,8 +49,15 @@ public class ResourceManager implements IResourceManager
     public boolean prepare(int xid)
 	throws RemoteException, TransactionAbortedException, InvalidTransactionException
 	{
+		if (CRASHMODE == 1){
+			System.exit(1);
+		}
+
 		// Check if transaction was aborted
-		if (abortedTransactions.contains(xid)) return false;
+		if (abortedTransactions.contains(xid)) {
+			writeLog(xid, "abort");
+			return false;
+		}
 		
 		// Read last comitted copy of db
 		RMHashMap committedData = null;
@@ -99,6 +106,25 @@ public class ResourceManager implements IResourceManager
 		System.out.println("Write updated ready-to-commit data:\n" + committedData + "\n");
 
 		writeLog(xid, "yes");
+
+		if (CRASHMODE == 2){
+			System.exit(1);
+		}
+
+		if (CRASHMODE == 3){
+			new Thread(new Runnable() {
+				@Override
+				public void run() {
+					try{
+						Thread.sleep(2000);
+						System.exit(1);
+					}
+					catch(InterruptedException e){
+						System.exit(1);
+					}
+				}
+			}).start();
+		}
 
 		killTimer(xid);
 		removeTimer(xid);
@@ -296,6 +322,11 @@ public class ResourceManager implements IResourceManager
 	}
 
 	private void restartProtocal() {
+
+		if (CRASHMODE == 5){
+			System.exit(1);
+		}
+
 		// Load the Log
 		try {
 			FileInputStream fileIn = new FileInputStream(logFile);
@@ -332,7 +363,7 @@ public class ResourceManager implements IResourceManager
 						abort(txn.xid);
 					}
 					else if (logMsg.equals("yes")){
-						// Ask MW?
+						startedTransactions.add(txn.xid);
 					}
 					else if (logMsg.equals("abort")){
 						abort(txn.xid);
@@ -427,6 +458,10 @@ public class ResourceManager implements IResourceManager
 		if (hasImage(transactionId)) {
 			writeLog(transactionId, "commit");
 
+			if (CRASHMODE == 4){
+				System.exit(1);
+			}
+
 			//update master record to point to the current committed version
 			updateMasterRecord(transactionId);
 
@@ -444,6 +479,11 @@ public class ResourceManager implements IResourceManager
 
 		if (abortedTransactions.contains(transactionId)) return;
 		writeLog(transactionId, "abort");
+
+		if (CRASHMODE == 4){
+			System.exit(1);
+		}
+
 		abortedTransactions.add(transactionId);
 
 		// Undo all ops.
