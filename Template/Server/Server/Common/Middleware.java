@@ -2,6 +2,7 @@ package Server.Common;
 
 import Server.Interface.*;
 
+import java.lang.*;
 import java.util.*;
 import java.io.*;
 import java.rmi.RemoteException;
@@ -14,8 +15,8 @@ public class Middleware implements IResourceManager
 {
 
 	protected static int CRASHMODE = 0;
-	private static int REPLY_TIMEOUT = 20000;
-	private static int CONNECTION_TIMEOUT = 120000;
+	private static int REPLY_TIMEOUT = 450000;
+	private static int CONNECTION_TIMEOUT = 60000;
 
 
 
@@ -32,7 +33,6 @@ public class Middleware implements IResourceManager
 	
 	//resource managers 
 	protected static HashMap s_resourceManagers;
-	protected static HashMap RMServers;
 	//client IDs
 	protected static IResourceManager car_Manager = null;
 	protected static IResourceManager flight_Manager = null;
@@ -44,6 +44,7 @@ public class Middleware implements IResourceManager
 	private String dbCommittedFile = dbAFile;
 	private String logFile = "/tmp/log.ser";
 
+	public void pingRMS(String manager){};
 
 	/**
      * The voting request method for 2PC 
@@ -141,9 +142,6 @@ public class Middleware implements IResourceManager
 		dbBFile = m_name + dbBFile;
 		logFile = m_name + logFile;
 		checkOrCreateFiles();
-		if (CRASHMODE == 8){
-			System.exit(1);
-		}
 		restoreMasterRecord();
 		restartProtocal();
 		Trace.info("All Managers connected and ready to roll");
@@ -299,53 +297,69 @@ public class Middleware implements IResourceManager
 			System.exit(1);
 		}
 		//operate correspondingly for each log
-		Integer highest = new Integer(0);
+		//Integer highest = new Integer(0);
 		if (persistLog.size()>0){
 			for ( Integer key : persistLog.keySet() ) {
-				if (key.intValue() > highest.intValue()){
-					highest = new Integer(key.intValue());
+				if (key.intValue() > highestXid.intValue()){
+					highestXid = new Integer(key.intValue());
 				}
 				Transaction txn = persistLog.remove(key);
 				if (txn.latestLog().equals("Empty")){
-					abortAll(txn.xid);
+					abortAll(txn);
 				}
 				else if (txn.latestLog().equals("abort")){
-					abortAll(txn.xid);
+					abortAll(txn);
 				}
 				else if (txn.latestLog().equals("commit")){
-					commitAll(txn.xid);
+					commitAll(txn);
+				}
+				else if (txn.latestLog().equals("Start2PC")){
+					writeTransaction(txn.xid,txn.managers);
+					try{
+						commit(txn.xid);
+					}catch (Exception e){}
 				}
 			}
 		}
-		if (highest.intValue() > highestXid.intValue()){
-			highestXid = new Integer(highest.intValue());
-		}
 	}
 
-	private void abortAll(int xid){
-		
-		try{
-			car_Manager.abort(xid);
-		}catch(Exception e){}
-		try{
-			flight_Manager.abort(xid);
-		}catch(Exception e){}
-		try{
-			room_Manager.abort(xid);
-		}catch(Exception e){}
+	private void abortAll(Transaction txn){
+		int xid = txn.xid;
+		if (txn.managers.indexOf("car") >= 0){
+			try{
+				car_Manager.abort(xid);
+			}catch(Exception e){}
+		}
+		if (txn.managers.indexOf("flight") >= 0){
+			try{
+				flight_Manager.abort(xid);
+			}catch(Exception e){}
+		}
+		if (txn.managers.indexOf("room") >= 0){
+			try{
+				room_Manager.abort(xid);
+			}catch(Exception e){}
+		}
 		abortedT.add(xid);
 	}
 
-	private void commitAll(int xid){
-		try{
-			car_Manager.commit(xid);
-		}catch(Exception e){}
-		try{
-			flight_Manager.commit(xid);
-		}catch(Exception e){}
-		try{
-			room_Manager.commit(xid);
-		}catch(Exception e){}
+	private void commitAll(Transaction txn){
+		int xid = txn.xid;
+		if (txn.managers.indexOf("car") >= 0){
+			try{
+				car_Manager.commit(xid);
+			}catch(Exception e){}
+		}
+		if (txn.managers.indexOf("flight") >= 0){
+			try{
+				flight_Manager.commit(xid);
+			}catch(Exception e){}
+		}
+		if (txn.managers.indexOf("room") >= 0){
+			try{
+				room_Manager.commit(xid);
+			}catch(Exception e){}
+		}
 		removeTransaction(xid);
 	}
 
@@ -410,6 +424,18 @@ public class Middleware implements IResourceManager
 		return txn.latestLog();
 	}
 
+	private void logManager(int xid, String manager){
+		synchronized(persistLog) {
+			//create new log
+			if(persistLog.get(xid) != null){
+				Transaction txn = (Transaction)persistLog.get(xid);
+				txn.addManager(manager);
+				persistLog.put(xid,txn);
+				Trace.info(manager + " has been associated with " + xid);
+			}
+		}
+	}
+
 
 	public int start() throws RemoteException
 	{
@@ -472,11 +498,11 @@ public class Middleware implements IResourceManager
 			dbCommittedFile = getInProgressFilename();
 			removeTransaction(transactionId);
 			removeLog(transactionId);
-			return success;
+			return true;
 		}
 		else
 		{
-			return success;
+			return false;
 		}
 	}
 
@@ -489,17 +515,36 @@ public class Middleware implements IResourceManager
 		if (existing.indexOf("car") >= 0)
 		{
 			Trace.info("Middleware asks car Manager to vote for commit(" + transactionId + ")");
-			Thread car = new Thread(new ReplyThread(transactionId, "car"));
-			car.start();
+			//Thread car = new Thread(new ReplyThread(transactionId, "car"));
+			//car.start();
 			//same as not send
 			if (CRASHMODE == 2){
 				System.exit(1);	
 			}
-			success = success && (car_Manager.prepare(transactionId));
+			try{
+				success = success && (car_Manager.prepare(transactionId));
+			}
+			catch(RemoteException e){
+				long tS = System.currentTimeMillis();
+				boolean reconnnected = false;
+				while ((System.currentTimeMillis() - tS < REPLY_TIMEOUT))
+				{
+					try{
+						success = success && (car_Manager.prepare(transactionId));
+						reconnnected = true;
+						break;
+					}
+					catch(RemoteException exe){}
+				}
+				if (!reconnnected){
+					this.abort(transactionId);
+					return false;
+				}
+			}
 			if (CRASHMODE == 3){
 				System.exit(1);
 			}
-			car.interrupt();
+			//car.interrupt();
 			if (!success)
 			{
 				writeLog(transactionId, "abort");
@@ -510,16 +555,35 @@ public class Middleware implements IResourceManager
 		if (existing.indexOf("flight") >= 0)
 		{
 			Trace.info("Middleware asks flight Manager to vote for commit(" + transactionId + ")");
-			Thread flight = new Thread(new ReplyThread(transactionId, "flight"));
-			flight.start();
+			//Thread flight = new Thread(new ReplyThread(transactionId, "flight"));
+			//flight.start();
 			if (CRASHMODE == 2){
 				System.exit(1);	
 			}
-			success = success && (flight_Manager.prepare(transactionId));
+			try{
+				success = success && (flight_Manager.prepare(transactionId));
+			}
+			catch(RemoteException e){
+				long tS = System.currentTimeMillis();
+				boolean reconnnected = false;
+				while ((System.currentTimeMillis() - tS < REPLY_TIMEOUT))
+				{
+					try{
+						success = success && (flight_Manager.prepare(transactionId));
+						reconnnected = true;
+						break;
+					}
+					catch(RemoteException exe){}
+				}
+				if (!reconnnected){
+					this.abort(transactionId);
+					return false;
+				}
+			}
 			if (CRASHMODE == 3){
 				System.exit(1);
 			}
-			flight.interrupt();
+			//flight.interrupt();
 			if (!success)
 			{
 				writeLog(transactionId, "abort");
@@ -530,16 +594,35 @@ public class Middleware implements IResourceManager
 		if (existing.indexOf("room") >= 0)
 		{
 			Trace.info("Middleware asks room Manager to vote for commit(" + transactionId + ")");
-			Thread room = new Thread(new ReplyThread(transactionId, "room"));
-			room.start();
+			//Thread room = new Thread(new ReplyThread(transactionId, "room"));
+			//room.start();
 			if (CRASHMODE == 2){
 				System.exit(1);	
 			}
-			success = success && (room_Manager.prepare(transactionId));
+			try{
+				success = success && (room_Manager.prepare(transactionId));
+			}
+			catch(RemoteException exe){
+				long tS = System.currentTimeMillis();
+				boolean reconnnected = false;
+				while ((System.currentTimeMillis() - tS < REPLY_TIMEOUT))
+				{
+					try{
+						success = success && (room_Manager.prepare(transactionId));
+						reconnnected = true;
+						break;
+					}
+					catch(RemoteException e){}
+				}
+				if (!reconnnected){
+					this.abort(transactionId);
+					return false;
+				}
+			}
 			if (CRASHMODE == 3){
 				System.exit(1);
 			}
-			room.interrupt();
+			//room.interrupt();
 			if (!success)
 			{
 				writeLog(transactionId, "abort");
@@ -720,44 +803,19 @@ public class Middleware implements IResourceManager
 		}
 	}
 
-	private static void connectRM(String server, String name) { }
 
 	// this transaction is associated with car_manager
 	private void associateManager(int xid, String manager) throws RemoteException
 	{
-		try {
-			if (manager.equals("car")) {
-				car_Manager.start(); // just a ping method
-			}
-			else if (manager.equals("flight")) {
-				flight_Manager.start(); // just a ping method
-			}
-			else if (manager.equals("room")) {
-				room_Manager.start(); // just a ping method
-			}
-		}
-		catch (ConnectException e) {
-			Trace.info("Reconnecting to " + manager + " Manager");
-			if (manager.equals("car")) {
-				connectRM((String)RMServers.get("Cars"), "Cars");
-				car_Manager = (IResourceManager)s_resourceManagers.get("Cars");
-			}
-			else if (manager.equals("flight")) {
-				connectRM((String)RMServers.get("Flights"), "Flights");
-				flight_Manager = (IResourceManager)s_resourceManagers.get("Flights");
-			}
-			else if (manager.equals("room")) {
-				connectRM((String)RMServers.get("Rooms"), "Rooms");
-				room_Manager = (IResourceManager)s_resourceManagers.get("Rooms");
-			}
-		}
-
 		String existing = readTransaction(xid);
 		// if the manager is not already associated, add it to the association
 		if (existing.indexOf(manager) == -1)
 		{
 			writeTransaction(xid, existing+manager);
+			logManager(xid, manager);
 		}
+		// test connection
+		pingRMS(manager);
 	}
 
 	//check if a transaction is started or not
