@@ -127,7 +127,7 @@ public class ResourceManager implements IResourceManager
 			}
 			else
 			{
-				committedData = new StoreableRM((RMHashMap)m_data.clone(), (HashSet)startedTransactions.clone(), (HashSet)abortedTransactions.clone());;
+				committedData = new StoreableRM((RMHashMap)m_data, (HashSet)startedTransactions, (HashSet)abortedTransactions);
 				System.out.println("Create first version of committed data\n" + committedData.getData() + "\n");
 			}
 		} catch (IOException i) {
