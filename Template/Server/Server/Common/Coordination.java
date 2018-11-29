@@ -10,13 +10,11 @@ public class Coordination implements Serializable
 	public Integer highestXid;
 	public HashMap<Integer, String> transactionInfo;
 	public ArrayList<Integer> abortedT;
-	public int crashMode = 0;
 
-	public Coordination(Integer xid, HashMap<Integer, String> tInfo, ArrayList<Integer> taborted, int cm)
+	public Coordination(Integer xid, HashMap<Integer, String> tInfo, ArrayList<Integer> taborted)
 	{
 		highestXid = Integer.valueOf(xid.intValue());
 		transactionInfo = (HashMap<Integer, String>)tInfo.clone();
 		abortedT = (ArrayList<Integer>)taborted.clone();
-		crashMode = cm;
 	}
 }

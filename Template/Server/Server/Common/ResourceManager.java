@@ -127,7 +127,7 @@ public class ResourceManager implements IResourceManager
 			}
 			else
 			{
-				committedData = new StoreableRM(m_data, startedTransactions, abortedTransactions, CRASHMODE);
+				committedData = new StoreableRM(m_data, startedTransactions, abortedTransactions);
 				System.out.println("Create first version of committed data\n" + committedData.getData() + "\n");
 			}
 		} catch (IOException i) {
@@ -168,6 +168,13 @@ public class ResourceManager implements IResourceManager
 		Trace.info("RM::crashResourceManager with mode " + mode);
 		if (name.equals(m_name)){
 			CRASHMODE = mode;
+			if (mode == 5) {
+				File f = new File(m_name+"/tmp/"+"crash.txt");
+				try{
+					f.createNewFile();			
+				}
+				catch (Exception e) {}
+			}
 		}
 	}
 
@@ -241,7 +248,6 @@ public class ResourceManager implements IResourceManager
 					m_data = rm.getData();
 					abortedTransactions = rm.getAbortedT();
 					startedTransactions = rm.getStartedT();
-					CRASHMODE = rm.getCrashMode();
 					Trace.info("Data recovered:\n" + m_data);
 					in.close();
 					fileIn.close();
@@ -328,15 +334,10 @@ public class ResourceManager implements IResourceManager
 		synchronized (persistLog) {
 			persistLog.remove(xid);
 		}
-		persistLogFile();
 	}
 
 	private void restartProtocal() {
 		// Keep in mind: DB is already restored!
-
-		if (CRASHMODE == 5){
-			System.exit(1);
-		}
 
 		// Load the Log
 		try {
@@ -375,23 +376,31 @@ public class ResourceManager implements IResourceManager
 					recoverTxnData(txn);
 
 					if (logMsg.equals("Empty")){
-						abort(txn.xid);
+						abortNoPersist(txn.xid);
 					}
 					else if (logMsg.equals("yes")){
 						// Wait...
 					}
 					else if (logMsg.equals("abort")){
-						abort(txn.xid);
+						abortNoPersist(txn.xid);
 					}
 					else if (logMsg.equals("commit")){
-						commit(txn.xid);
+						commitNoPersist(txn.xid);
 					}
 				}
+			}
+			
+			File f = new File(m_name+"/tmp/"+"crash.txt");
+			if (f.exists()) {
+				Trace.info("Recovery crash");
+				System.exit(1);
 			}
 		}
 		catch (Exception e) {
 			e.printStackTrace();
 		}
+		//now persist the change to Log files after all recovery is done
+		persistLogFile();
 	}
 
 	private void recoverTxnData(Transaction txn) throws TransactionAbortedException, InvalidTransactionException {
@@ -503,10 +512,85 @@ public class ResourceManager implements IResourceManager
 		killTimer(transactionId);
 		removeTimer(transactionId);
 		deleteLog(transactionId);
+		persistLogFile();
+		return lockManager.UnlockAll(transactionId);
+	}
+
+	public boolean commitNoPersist(int transactionId) throws RemoteException, TransactionAbortedException, InvalidTransactionException
+	{
+		// Delete transaction from log
+		Trace.info("RM::commit(" + transactionId + ") called");
+
+		if (!persistLog.containsKey(transactionId)) return false;
+
+		if (hasImage(transactionId)) {
+			writeLog(transactionId, "commit");
+
+			if (CRASHMODE == 4){
+				System.exit(1);
+			}
+
+			// Read last comitted copy of db
+			StoreableRM committedData = readDB();
+
+			// And merge with this Txn's changes
+			RMHashMap image = persistLog.get(transactionId).data;
+			for (String key : image.keySet()) {
+				committedData.addData(key, image.get(key));
+			}
+
+			// Write dbFile in-progress
+			persistDB(committedData);
+
+			// Update master record to point to the current committed version
+			updateMasterRecord(transactionId);
+
+			removeImage(transactionId);
+		}
+
+		killTimer(transactionId);
+		removeTimer(transactionId);
+		deleteLog(transactionId);
 		return lockManager.UnlockAll(transactionId);
 	}
 
 	public void abort(int transactionId) throws RemoteException, InvalidTransactionException
+	{
+		Trace.info("RM::abort(" + transactionId + ") called");
+
+		if (!persistLog.containsKey(transactionId)) return;
+		
+		try{
+			writeLog(transactionId, "abort");
+		}
+		catch (TransactionAbortedException e){		}
+
+		if (CRASHMODE == 4){
+			System.exit(1);
+		}
+
+		abortedTransactions.add(transactionId);
+
+		// Undo all ops.
+		if (hasImage(transactionId)) {
+			RMHashMap image = readImage(transactionId);
+			synchronized(m_data) {
+				for (String key : image.keySet()) {
+					m_data.put(key, image.get(key));
+				}
+			}
+			removeImage(transactionId);
+		}
+
+		// Delete transaction from log
+		killTimer(transactionId);
+		removeTimer(transactionId);
+		deleteLog(transactionId);
+		persistLogFile();
+		lockManager.UnlockAll(transactionId);
+	}
+
+	public void abortNoPersist(int transactionId) throws RemoteException, InvalidTransactionException
 	{
 		Trace.info("RM::abort(" + transactionId + ") called");
 
@@ -604,11 +688,11 @@ public class ResourceManager implements IResourceManager
 	{
 		beforeFilter(xid, key, TransactionLockObject.LockType.LOCK_WRITE);
 		synchronized(m_data) {
-			System.out.println(readImage(xid));
-			if (!readImage(xid).containsKey(key)) {
-				RMItem item = readData(xid, key);
-				System.out.println(item);
-				writeImage(xid, key, item);
+			if (hasImage(xid)) {
+				if (!readImage(xid).containsKey(key)) {
+					RMItem item = readData(xid, key);
+					writeImage(xid, key, item);
+				}
 			}
 			m_data.put(key, value);
 		}

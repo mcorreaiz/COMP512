@@ -106,6 +106,13 @@ public class Middleware implements IResourceManager
 	public void crashMiddleware(int mode) throws RemoteException{
 		Trace.info("Middleware::crashMiddleware" + mode);
 		CRASHMODE = mode;
+		if (mode == 8) {
+			File f = new File(m_name+"/tmp/"+"crash.txt");
+			try{
+				f.createNewFile();			
+			}
+			catch (Exception e) {}
+		}
 	}
 
     public void crashResourceManager(String name /* RM Name */, int mode) throws RemoteException{
@@ -235,7 +242,6 @@ public class Middleware implements IResourceManager
 					highestXid = Integer.valueOf(coor.highestXid.intValue());
 					abortedT = (ArrayList<Integer>)coor.abortedT.clone();
 					transactionInfo = (HashMap<Integer, String>)coor.transactionInfo.clone();
-					CRASHMODE = coor.crashMode;
 					in.close();
 					fileIn.close();
 					}
@@ -298,11 +304,12 @@ public class Middleware implements IResourceManager
 		//operate correspondingly for each log
 		//Integer highest = new Integer(0);
 		if (persistLog.size()>0){
-			for ( Integer key : persistLog.keySet() ) {
+			HashMap<Integer, Transaction> iter = (HashMap<Integer, Transaction>) persistLog.clone();
+			for ( Integer key : iter.keySet() ) {
 				if (key.intValue() > highestXid.intValue()){
 					highestXid = new Integer(key.intValue());
 				}
-				Transaction txn = persistLog.remove(key);
+				Transaction txn = iter.get(key);
 				Trace.info("reads a log file for " + txn.xid + " status is: " + txn.latestLog());
 				if (txn.latestLog().equals("Empty")){
 					abortAll(txn);
@@ -321,14 +328,18 @@ public class Middleware implements IResourceManager
 				}
 				//remove each log after operation (in Main Memory)
 				removeLog(txn.xid);
-				if (CRASHMODE == 8){
-					System.exit(1);
-				}
+			}
+		}
+		if (CRASHMODE == 8) {
+			File f = new File(m_name+"/tmp/"+"crash.txt");
+			if (f.exists()) {
+				Trace.info("Recovery crash");
+				System.exit(1);
 			}
 		}
 		//persist the change to main memory
 		//only create shadow copy when recovery is completed
-		Coordination committedData = new Coordination(highestXid,transactionInfo,abortedT,CRASHMODE);
+		Coordination committedData = new Coordination(highestXid,transactionInfo,abortedT);
 		// Create and write dbFile in-progress
 		try {
 			FileOutputStream fileOut = new FileOutputStream(getInProgressFilename());
@@ -506,7 +517,7 @@ public class Middleware implements IResourceManager
 			removeTimer(transactionId);
 
 			//only create shadow copy when commit is completed
-			Coordination committedData = new Coordination(highestXid,transactionInfo,abortedT,CRASHMODE);
+			Coordination committedData = new Coordination(highestXid,transactionInfo,abortedT);
 			// Create and write dbFile in-progress
 			try {
 				FileOutputStream fileOut = new FileOutputStream(getInProgressFilename());
@@ -525,6 +536,7 @@ public class Middleware implements IResourceManager
 			dbCommittedFile = getInProgressFilename();
 			removeTransaction(transactionId);
 			removeLog(transactionId);
+			persistLogFile();
 			return true;
 		}
 		else
@@ -554,6 +566,7 @@ public class Middleware implements IResourceManager
 			catch(RemoteException e){
 				long tS = System.currentTimeMillis();
 				boolean reconnnected = false;
+				Trace.info("trying to reconnection to car RM");
 				while ((System.currentTimeMillis() - tS < REPLY_TIMEOUT))
 				{
 					try{
@@ -593,6 +606,7 @@ public class Middleware implements IResourceManager
 			catch(RemoteException e){
 				long tS = System.currentTimeMillis();
 				boolean reconnnected = false;
+				Trace.info("trying to reconnection to flight RM");
 				while ((System.currentTimeMillis() - tS < REPLY_TIMEOUT))
 				{
 					try{
@@ -632,6 +646,8 @@ public class Middleware implements IResourceManager
 			catch(RemoteException exe){
 				long tS = System.currentTimeMillis();
 				boolean reconnnected = false;
+				Trace.info("trying to reconnection to room RM");
+
 				while ((System.currentTimeMillis() - tS < REPLY_TIMEOUT))
 				{
 					try{
@@ -668,15 +684,24 @@ public class Middleware implements IResourceManager
 		if (existing.indexOf("car") >= 0)
 		{
 			Trace.info("Middleware asks nicely that car Manager should commit(" + transactionId + ")");
-			car_Manager.commit(transactionId);
+			try{
+				car_Manager.commit(transactionId);
+			}
+			catch(RemoteException e){
+				Trace.info("Didn't succeed in telling car manager to commit");
+			}
 			if (CRASHMODE == 6){
 				System.exit(1);
 			}
 		}
 		if (existing.indexOf("flight") >= 0)
 		{
-			Trace.info("Middleware asks nicely that flight Manager should commit(" + transactionId + ")");			
-			flight_Manager.commit(transactionId);
+			Trace.info("Middleware asks nicely that flight Manager should commit(" + transactionId + ")");
+			try{
+				flight_Manager.commit(transactionId);
+			}catch(RemoteException e){
+				Trace.info("Didn't succeed in telling flight manager to commit");
+			}
 			if (CRASHMODE == 6){
 				System.exit(1);
 			}
@@ -684,7 +709,11 @@ public class Middleware implements IResourceManager
 		if (existing.indexOf("room") >= 0)
 		{
 			Trace.info("Middleware asks nicely that room Manager should commit(" + transactionId + ")");
-			room_Manager.commit(transactionId);
+			try{
+				room_Manager.commit(transactionId);
+			}catch(RemoteException e){
+				Trace.info("Didn't succeed in telling room manager to commit");
+			}
 			if (CRASHMODE == 6){
 				System.exit(1);
 			}
@@ -714,18 +743,30 @@ public class Middleware implements IResourceManager
 		String existing = readTransaction(transactionId);
 		if (existing.indexOf("car") >= 0)
 		{
-			Trace.info("Middleware demands that car Manager must abort(" + transactionId + ")");			
-			car_Manager.abort(transactionId);
+			Trace.info("Middleware demands that car Manager must abort(" + transactionId + ")");
+			try{
+				car_Manager.abort(transactionId);
+			}catch(RemoteException e){
+				Trace.info("didn't successfully abort car manager");
+			}			
 		}
 		if (existing.indexOf("flight") >= 0)
 		{
 			Trace.info("Middleware demands that flight Manager must abort(" + transactionId + ")");						
-			flight_Manager.abort(transactionId);
+			try{
+				flight_Manager.abort(transactionId);
+			}catch(RemoteException e){
+				Trace.info("didn't successfully abort flight manager");
+			}
 		}
 		if (existing.indexOf("room") >= 0)
 		{
 			Trace.info("Middleware demands that room Manager must abort(" + transactionId + ")");						
-			room_Manager.abort(transactionId);
+			try{
+				room_Manager.abort(transactionId);
+			}catch(RemoteException e){
+				Trace.info("didn't successfully abort room manager");
+			}
 		}
 		removeTransaction(transactionId);
 		abortedT.add(transactionId);
@@ -734,7 +775,7 @@ public class Middleware implements IResourceManager
 		
 		//persist the middleware hashmaps
 		//only create shadow copy when abort is completed
-		Coordination committedData = new Coordination(highestXid,transactionInfo,abortedT,CRASHMODE);
+		Coordination committedData = new Coordination(highestXid,transactionInfo,abortedT);
 		// Create and write Coordination
 		try {
 			FileOutputStream fileOut = new FileOutputStream(getInProgressFilename());
@@ -752,6 +793,7 @@ public class Middleware implements IResourceManager
 		
 		dbCommittedFile = getInProgressFilename();
 		removeLog(transactionId);
+		persistLogFile();
 	}
 
 	public boolean shutdown() throws RemoteException
@@ -863,7 +905,9 @@ public class Middleware implements IResourceManager
 			}
 			else
 			{
-				resetTimer(xid);
+				if (!readLog(xid).equals("abort")){
+					resetTimer(xid);
+				}
 			}
 		}
 
@@ -954,6 +998,11 @@ public class Middleware implements IResourceManager
 		int cid = Integer.parseInt(String.valueOf(xid) +
 		String.valueOf(Calendar.getInstance().get(Calendar.MILLISECOND)) +
 		String.valueOf(Math.round(Math.random() * 100 + 1)));
+
+		checkExistence(xid);
+		associateManager(xid, "car");
+		associateManager(xid, "flight");
+		associateManager(xid, "room");
 
 		try
 		{
@@ -1530,6 +1579,7 @@ public class Middleware implements IResourceManager
 			try 
 			{
 				Trace.info("Middleware::Transaction" + Integer.toString(xid) + " connection timeout");
+				writeLog(this.xid,"abort");
 				abort(this.xid);
 			} 
 			catch (InvalidTransactionException e) 
