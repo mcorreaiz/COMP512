@@ -17,7 +17,7 @@ public class ResourceManager implements IResourceManager
 {
 
 	protected static int CRASHMODE = 0;
-	private static int CONNECTION_TIMEOUT = 90000;
+	private static int CONNECTION_TIMEOUT = 45000;
 
 	protected String m_name = "";
 	protected RMHashMap m_data = new RMHashMap();

@@ -25,6 +25,27 @@ public class RMIMiddleware extends Middleware
 	private static String s_rmiPrefix = "group9";
 	protected static HashMap RMServers = new HashMap();
 
+
+	public class ConnectionThread implements Runnable {
+
+		public ConnectionThread() {
+		}
+
+		@Override
+		public void run() {
+			while(true){
+				try{
+					testAndReconnectRMS();
+				}catch (Exception e){}
+			}
+		}
+	}
+
+
+
+
+
+
 	public static void main(String args[])
 	{
 		if (args.length > 2) {
@@ -105,7 +126,7 @@ public class RMIMiddleware extends Middleware
 			boolean first = true;
 			while (true) {
 				try {
-					System.out.println("Trying to connect to " + name);
+					//System.out.println("Trying to connect to " + name);
 					Registry registry = LocateRegistry.getRegistry(server, s_serverPort);
 					s_resourceManagers.put(name, (IResourceManager)registry.lookup(s_rmiPrefix + name));
 					RMServers.put(name, server);
@@ -149,10 +170,55 @@ public class RMIMiddleware extends Middleware
 			if (trying.equals("Rooms")) {
 				room_Manager = (IResourceManager)s_resourceManagers.get(trying);
 			}
-
-			testAndReconnectRMS(); // Recurse in case more than 1 RM is down
 		}
 	}
+
+	public void pingRMS(String manager){
+		String trying = "";
+		try {
+			if (manager.equals("car")){
+				trying = "Cars";
+				car_Manager.start(); // Just a ping() method
+			}
+			if (manager.equals("flight")){
+				trying = "Flights";
+				flight_Manager.start();
+			}
+			if (manager.equals("room")){
+				trying = "Rooms";
+				room_Manager.start();
+			}
+		}
+		catch (ConnectException e){
+			Trace.info("Reconnecting to " + trying + " Manager");
+			connectRM((String)RMServers.get(trying), trying);
+			if (trying.equals("Cars")) {
+				car_Manager = (IResourceManager)s_resourceManagers.get(trying);
+			}
+			if (trying.equals("Flights")) {
+				flight_Manager = (IResourceManager)s_resourceManagers.get(trying);
+			}
+			if (trying.equals("Rooms")) {
+				room_Manager = (IResourceManager)s_resourceManagers.get(trying);
+			}
+			pingRMS(manager);
+		}
+		catch (RemoteException y){
+			Trace.info("Reconnecting to " + trying + " Manager");
+			connectRM((String)RMServers.get(trying), trying);
+			if (trying.equals("Cars")) {
+				car_Manager = (IResourceManager)s_resourceManagers.get(trying);
+			}
+			if (trying.equals("Flights")) {
+				flight_Manager = (IResourceManager)s_resourceManagers.get(trying);
+			}
+			if (trying.equals("Rooms")) {
+				room_Manager = (IResourceManager)s_resourceManagers.get(trying);
+			}
+			pingRMS(manager);
+		}
+
+	} 
 
 	// public int start() 
     // throws RemoteException 

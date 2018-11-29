@@ -7,7 +7,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class Transaction implements Serializable
 {
 	private static final long serialVersionUID = 1L;
-    public int xid;
+	public int xid;
+	public String managers;
 	public List<String> StatusLog;
 	public RMHashMap data;
 
@@ -16,6 +17,7 @@ public class Transaction implements Serializable
 		this.xid = xid;
 		StatusLog = new ArrayList<String>();
 		data = null;
+		managers = "";
 	}
 
 	public void addLog(String status)
@@ -36,5 +38,9 @@ public class Transaction implements Serializable
 		else{
 			return StatusLog.get(StatusLog.size()-1);
 		}
+	}
+
+	public void addManager(String manager){
+		managers = managers + manager;
 	}
 }
