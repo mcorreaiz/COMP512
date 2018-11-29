@@ -200,7 +200,6 @@ public class Middleware implements IResourceManager
 					persistLog = (HashMap<Integer,Transaction>) in.readObject();
 					in.close();
 					fileIn.close();
-					restartProtocal();
 				}
 			}
 			catch (IOException i) {
@@ -214,8 +213,10 @@ public class Middleware implements IResourceManager
 		//try to load the existing data 
 		try {
 			FileInputStream fileIn = new FileInputStream(masterRecordFile);
+			Trace.info("About to restore MR");
 			if (fileIn.available() > 0)
 			{
+				Trace.info("MR file available");
 				ObjectInputStream in = new ObjectInputStream(fileIn);
 				hm = (HashMap<String,String>) in.readObject();
 				in.close();
@@ -228,12 +229,13 @@ public class Middleware implements IResourceManager
 				if (fileIn.available() > 0){
 					in = new ObjectInputStream(fileIn);
 					coor = (Coordination) in.readObject();
-					Trace.info("Data recovered:\n" + coor);
+					Trace.info("Data recovered:\n" + coor.highestXid);
 
 					//restore the important information
 					highestXid = Integer.valueOf(coor.highestXid.intValue());
 					abortedT = (ArrayList<Integer>)coor.abortedT.clone();
 					transactionInfo = (HashMap<Integer, String>)coor.transactionInfo.clone();
+					CRASHMODE = coor.crashMode;
 					in.close();
 					fileIn.close();
 					}
@@ -326,7 +328,7 @@ public class Middleware implements IResourceManager
 		}
 		//persist the change to main memory
 		//only create shadow copy when recovery is completed
-		Coordination committedData = new Coordination(highestXid,transactionInfo,abortedT);
+		Coordination committedData = new Coordination(highestXid,transactionInfo,abortedT,CRASHMODE);
 		// Create and write dbFile in-progress
 		try {
 			FileOutputStream fileOut = new FileOutputStream(getInProgressFilename());
@@ -348,6 +350,7 @@ public class Middleware implements IResourceManager
 
 	private void abortAll(Transaction txn){
 		int xid = txn.xid;
+		Trace.info("Middleware::AbortAll called");
 		if (txn.managers.indexOf("car") >= 0){
 			try{
 				car_Manager.abort(xid);
@@ -368,6 +371,7 @@ public class Middleware implements IResourceManager
 
 	private void commitAll(Transaction txn){
 		int xid = txn.xid;
+		Trace.info("Middleware::CommitAll called");
 		if (txn.managers.indexOf("car") >= 0){
 			try{
 				car_Manager.commit(xid);
@@ -502,7 +506,7 @@ public class Middleware implements IResourceManager
 			removeTimer(transactionId);
 
 			//only create shadow copy when commit is completed
-			Coordination committedData = new Coordination(highestXid,transactionInfo,abortedT);
+			Coordination committedData = new Coordination(highestXid,transactionInfo,abortedT,CRASHMODE);
 			// Create and write dbFile in-progress
 			try {
 				FileOutputStream fileOut = new FileOutputStream(getInProgressFilename());
@@ -730,7 +734,7 @@ public class Middleware implements IResourceManager
 		
 		//persist the middleware hashmaps
 		//only create shadow copy when abort is completed
-		Coordination committedData = new Coordination(highestXid,transactionInfo,abortedT);
+		Coordination committedData = new Coordination(highestXid,transactionInfo,abortedT,CRASHMODE);
 		// Create and write Coordination
 		try {
 			FileOutputStream fileOut = new FileOutputStream(getInProgressFilename());

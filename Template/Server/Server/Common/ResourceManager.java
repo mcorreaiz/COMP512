@@ -127,7 +127,7 @@ public class ResourceManager implements IResourceManager
 			}
 			else
 			{
-				committedData = new StoreableRM(m_data, startedTransactions, abortedTransactions);
+				committedData = new StoreableRM(m_data, startedTransactions, abortedTransactions, CRASHMODE);
 				System.out.println("Create first version of committed data\n" + committedData.getData() + "\n");
 			}
 		} catch (IOException i) {
@@ -241,6 +241,7 @@ public class ResourceManager implements IResourceManager
 					m_data = rm.getData();
 					abortedTransactions = rm.getAbortedT();
 					startedTransactions = rm.getStartedT();
+					CRASHMODE = rm.getCrashMode();
 					Trace.info("Data recovered:\n" + m_data);
 					in.close();
 					fileIn.close();

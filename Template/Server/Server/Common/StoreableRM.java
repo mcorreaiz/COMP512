@@ -13,11 +13,13 @@ public class StoreableRM implements Serializable {
     private RMHashMap m_data = new RMHashMap();
     private HashSet<Integer> startedTransactions = new HashSet<Integer>();
     private HashSet<Integer> abortedTransactions = new HashSet<Integer>();
+    private int crashMode = 0;
 
-    public StoreableRM(RMHashMap data, HashSet<Integer> startedT, HashSet<Integer> abortedT) {
+    public StoreableRM(RMHashMap data, HashSet<Integer> startedT, HashSet<Integer> abortedT, int crashM) {
         m_data = data;
         startedTransactions = startedT;
         abortedTransactions = abortedT;
+        crashMode = crashM;
     }
 
     public RMHashMap getData() {
@@ -34,5 +36,9 @@ public class StoreableRM implements Serializable {
 
     public HashSet<Integer> getAbortedT() {
         return abortedTransactions;
+    }
+
+    public int getCrashMode() {
+        return crashMode;
     }
 }
