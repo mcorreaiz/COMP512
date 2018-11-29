@@ -127,7 +127,7 @@ public class ResourceManager implements IResourceManager
 			}
 			else
 			{
-				committedData = new StoreableRM((RMHashMap)m_data, (HashSet)startedTransactions, (HashSet)abortedTransactions);
+				committedData = new StoreableRM(m_data, startedTransactions, abortedTransactions);
 				System.out.println("Create first version of committed data\n" + committedData.getData() + "\n");
 			}
 		} catch (IOException i) {
@@ -458,8 +458,8 @@ public class ResourceManager implements IResourceManager
 
 	private void startTx(int xid) throws TransactionAbortedException, InvalidTransactionException
 	{
-		// Start Tx timer and beforeImage
 		addImage(xid);
+		// Start Tx timer and beforeImage
 		startedTransactions.add(xid);
 		startTimer(xid);
 
@@ -603,9 +603,10 @@ public class ResourceManager implements IResourceManager
 	{
 		beforeFilter(xid, key, TransactionLockObject.LockType.LOCK_WRITE);
 		synchronized(m_data) {
-			if (!hasImage(xid)) addImage(xid);
+			System.out.println(readImage(xid));
 			if (!readImage(xid).containsKey(key)) {
 				RMItem item = readData(xid, key);
+				System.out.println(item);
 				writeImage(xid, key, item);
 			}
 			m_data.put(key, value);
