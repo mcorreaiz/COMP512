@@ -293,9 +293,6 @@ public class Middleware implements IResourceManager
          		c.printStackTrace();
 		}
 
-		if (CRASHMODE == 8){
-			System.exit(1);
-		}
 		//operate correspondingly for each log
 		//Integer highest = new Integer(0);
 		if (persistLog.size()>0){
@@ -304,6 +301,7 @@ public class Middleware implements IResourceManager
 					highestXid = new Integer(key.intValue());
 				}
 				Transaction txn = persistLog.remove(key);
+				Trace.info("reads a log file for " + txn.xid + " status is: " + txn.latestLog());
 				if (txn.latestLog().equals("Empty")){
 					abortAll(txn);
 				}
@@ -319,8 +317,33 @@ public class Middleware implements IResourceManager
 						commit(txn.xid);
 					}catch (Exception e){}
 				}
+				//remove each log after operation (in Main Memory)
+				removeLog(txn.xid);
+				if (CRASHMODE == 8){
+					System.exit(1);
+				}
 			}
 		}
+		//persist the change to main memory
+		//only create shadow copy when recovery is completed
+		Coordination committedData = new Coordination(highestXid,transactionInfo,abortedT);
+		// Create and write dbFile in-progress
+		try {
+			FileOutputStream fileOut = new FileOutputStream(getInProgressFilename());
+			ObjectOutputStream out = new ObjectOutputStream(fileOut);
+			out.writeObject(committedData);
+			out.close();
+			fileOut.close();
+		} catch (IOException i) {
+			i.printStackTrace();
+		}
+		System.out.println("Persist recovery progress from main memory:\n" + committedData);
+
+		//update master record to point to the current committed version
+		updateMasterRecord(highestXid.intValue());
+		dbCommittedFile = getInProgressFilename();
+		//now persist the change to Log files after all recovery is done
+		persistLogFile();
 	}
 
 	private void abortAll(Transaction txn){
