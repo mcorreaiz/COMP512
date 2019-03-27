@@ -3,6 +3,15 @@ package Client;
 public enum Command {
 	Help("List all available commands", "[CommandName]"),
 
+	resetCrashes("Reset Crash Mode for everyone", ""),
+	crashMiddleware("Set the Crash Mode for Transaction Manager", "<Crash Mode>"),
+	crashResourceManager("Set the Crash Mode for Resource Manager", "<Crash Mode>"),
+	
+	Start("Start a transaction", ""),
+	Commit("Commit a specific transaction", "<xid>"),
+	Abort("Abort a specific transaction", "<xid>"),
+	Shutdown("Shutdown all the serverers gracefully I guess", ""),
+
 	AddFlight("Add a new flight number", "<xid>,<FlightNumber>,<NumberOfSeats>,<PricePerSeat>"),
 	AddCars("Add a new car location", "<xid>,<Location>,<NumberOfCar>,<Price>"),
 	AddRooms("Add a new room location", "<xid>,<Location>,<NumberOfRoom>,<Price>"),

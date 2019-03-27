@@ -6,27 +6,674 @@
 package Server.Common;
 
 import Server.Interface.*;
+import Server.LockManager.*;
 
 import java.util.*;
 import java.rmi.RemoteException;
 import java.io.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ResourceManager implements IResourceManager
 {
+
+	protected static int CRASHMODE = 0;
+	private static int CONNECTION_TIMEOUT = 45000;
+
 	protected String m_name = "";
 	protected RMHashMap m_data = new RMHashMap();
+	private LockManager lockManager = new LockManager();
 	protected static HashMap s_resourceManagers;
-	private static boolean isCustomers;
 
-	public ResourceManager(String p_name)
-	{
+	private static HashMap<String, Integer> LocationMapCar = new HashMap<String, Integer>();
+	private static HashMap<String, Integer> LocationMapRoom = new HashMap<String, Integer>();
+
+	private HashMap<Integer, RMHashMap> beforeImageLog = new HashMap<Integer, RMHashMap>();
+	private HashSet<Integer> startedTransactions = new HashSet<Integer>();
+	private HashSet<Integer> abortedTransactions = new HashSet<Integer>();
+
+	//manage transaction timeout 
+	private ConcurrentHashMap<Integer, Thread> timeTable = new ConcurrentHashMap<Integer, Thread>();
+	protected static HashMap<Integer, Transaction> persistLog = new HashMap<Integer, Transaction>();
+
+	private String masterRecordFile = "/tmp/masterRecord.ser";
+	private String dbAFile = "/tmp/dbA.ser";
+	private String dbBFile = "/tmp/dbB.ser";
+	private String dbCommittedFile = dbAFile;
+	private String logFile = "/tmp/log.ser";
+
+	public ResourceManager(String p_name) {
 		m_name = p_name;
-		isCustomers = new String("Customers").equals(p_name);
+		masterRecordFile = m_name + masterRecordFile;
+		dbCommittedFile = m_name + dbCommittedFile;
+		dbAFile = m_name + dbAFile;
+		dbBFile = m_name + dbBFile;
+		logFile = m_name + logFile;
+
+		// Recovery
+		checkOrCreateFiles();
+		restoreDB();
+		restartProtocal();
+	}
+
+	/**
+     * The voting request method for 2PC 
+     * @return boolean
+     * yes for ready to commit, no for abort
+     */
+    public boolean prepare(int xid)
+	throws RemoteException, TransactionAbortedException, InvalidTransactionException
+	{
+		if (!persistLog.containsKey(xid)) return false;
+
+		if (CRASHMODE == 1){
+			System.exit(1);
+		}
+
+		// Check if transaction was aborted
+		if (abortedTransactions.contains(xid)) return false;
+		
+		resetTimer(xid);
+		writeLog(xid, "yes");
+
+		if (CRASHMODE == 2){
+			System.exit(1);
+		}
+
+		if (CRASHMODE == 3){
+			new Thread(new Runnable() {
+				@Override
+				public void run() {
+					try{
+						Thread.sleep(2000);
+						System.exit(1);
+					}
+					catch(InterruptedException e){
+						System.exit(1);
+					}
+				}
+			}).start();
+		}
+
+		killTimer(xid);
+		removeTimer(xid);
+		return true;
+	}
+
+	public void persistDB(StoreableRM committedData) {
+		try {
+			FileOutputStream fileOut = new FileOutputStream(getInProgressFilename());
+			ObjectOutputStream out = new ObjectOutputStream(fileOut);
+			out.writeObject(committedData);
+			out.close();
+			fileOut.close();
+		} catch (IOException i) {
+			i.printStackTrace();
+		}
+		System.out.println("Write updated ready-to-commit data:\n" + committedData.getData() + "\n");
+	}
+
+	public StoreableRM readDB() {
+		StoreableRM committedData = null;
+		try {
+			FileInputStream fileIn = new FileInputStream(dbCommittedFile);
+			if (fileIn.available() != 0)
+			{
+				ObjectInputStream in = new ObjectInputStream(fileIn);
+				committedData = (StoreableRM) in.readObject();
+				in.close();
+				fileIn.close();
+				System.out.println("Read last committed data:\n" + committedData.getData() + "\n");
+
+			}
+			else
+			{
+				committedData = new StoreableRM(m_data, startedTransactions, abortedTransactions);
+				System.out.println("Create first version of committed data\n" + committedData.getData() + "\n");
+			}
+		} catch (IOException i) {
+			i.printStackTrace();
+		} catch (ClassNotFoundException c) {
+			c.printStackTrace();
+		}
+		return committedData;
+	}
+
+    /**
+     * disable crashes
+     * reset crash mode to 0 (no crash)
+     */
+	public void resetCrashes() throws RemoteException
+	{
+		Trace.info("RM::resetCrashes");
+		CRASHMODE = 0;
+	}
+
+
+    /**
+     * enable crashes for middleware
+     * set new crash mode
+     */
+	public void crashMiddleware(int mode) throws RemoteException
+	{
+
+	}
+
+    /**
+     * enable crashes for resource managers
+     * set new crash mode
+     */
+    public void crashResourceManager(String name /* RM Name */, int mode) 
+	throws RemoteException
+	{
+		Trace.info("RM::crashResourceManager with mode " + mode);
+		if (name.equals(m_name)){
+			CRASHMODE = mode;
+			if (mode == 5) {
+				File f = new File(m_name+"/tmp/"+"crash.txt");
+				try{
+					f.createNewFile();			
+				}
+				catch (Exception e) {}
+			}
+		}
+	}
+
+	private void checkOrCreateFiles() {
+		try {
+			File tmpFile = new File(masterRecordFile);
+			// if master file exists, there must be a committed version
+			if (!tmpFile.exists()) 
+			{               
+				tmpFile.getParentFile().mkdirs();
+				tmpFile.createNewFile();
+				Trace.info("new persistent master record created at " + tmpFile.getParentFile().getAbsolutePath());
+
+				File tmpFile2 = new File(dbAFile);
+				if (!tmpFile2.exists()) 
+				{               
+					tmpFile2.getParentFile().mkdirs();
+					tmpFile2.createNewFile();
+				}
+
+				File tmpFile3 = new File(dbBFile);
+				if (!tmpFile3.exists()) 
+				{               
+					tmpFile3.getParentFile().mkdirs();
+					tmpFile3.createNewFile();
+				}
+				
+				//create the persistant logs
+				File tmpFile4 = new File(logFile);
+				if (!tmpFile4.exists()) 
+				{               
+					tmpFile4.getParentFile().mkdirs();
+					tmpFile4.createNewFile();
+				}
+
+			}
+			else {
+				Trace.info("persistent master record exists at " + tmpFile.getParentFile().getAbsolutePath());
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	private void restoreDB() {
+		HashMap hm = null;
+		StoreableRM rm = null;
+
+		try {
+			// Restore master record
+			FileInputStream fileIn = new FileInputStream(masterRecordFile);
+			if (fileIn.available() > 0)
+			{
+				ObjectInputStream in = new ObjectInputStream(fileIn);
+				hm = (HashMap<String,String>) in.readObject();
+				in.close();
+				fileIn.close();
+
+				int tid = Integer.parseInt(hm.get("tid").toString()); // Do sth with this guy
+				Trace.info("TID is " + tid);
+				dbCommittedFile = hm.get("filename").toString();
+				Trace.info("reading committed db file at " + dbCommittedFile);
+
+				// Restore db file
+
+				fileIn = new FileInputStream(dbCommittedFile);
+				if (fileIn.available() > 0)
+				{
+					in = new ObjectInputStream(fileIn);
+					rm = (StoreableRM) in.readObject(); // Restore
+					m_data = rm.getData();
+					abortedTransactions = rm.getAbortedT();
+					startedTransactions = rm.getStartedT();
+					Trace.info("Data recovered:\n" + m_data);
+					in.close();
+					fileIn.close();
+				}
+			}			
+		} 
+		catch (IOException i) {
+		i.printStackTrace();
+		} 
+		catch (ClassNotFoundException c) {
+		c.printStackTrace();
+		}
+	}
+
+	private void updateMasterRecord(int xid) {
+		HashMap hm = new HashMap<String, String>();
+		hm.put("tid", Integer.toString(xid));
+		hm.put("filename", getInProgressFilename());
+
+		try {
+			FileOutputStream fileOut = new FileOutputStream(masterRecordFile);
+			ObjectOutputStream out = new ObjectOutputStream(fileOut);
+			out.writeObject(hm);
+			out.close();
+			fileOut.close();
+		} catch (IOException i) {
+			i.printStackTrace();
+		}
+		System.out.println("Updated master record:\n" + hm);
+	}
+	
+	private void persistLogFile()
+	{
+		try 
+		{
+			FileOutputStream fileOut = new FileOutputStream(logFile);
+			ObjectOutputStream out = new ObjectOutputStream(fileOut);
+			out.writeObject(persistLog);
+			out.close();
+			fileOut.close();
+		} 
+		catch (IOException i) 
+		{
+			i.printStackTrace();
+		}
+		//Trace.info("Updated Log Files:\n");
+	}
+
+	private void writeLog(int xid, String log) throws TransactionAbortedException, InvalidTransactionException
+	{
+		synchronized(persistLog) {
+			//create new log
+			if (persistLog.get(xid) == null) {
+				Transaction txn = new Transaction(xid);
+				persistLog.put(xid,txn);
+			}
+			//updating existing log
+			else {
+				Transaction txn = (Transaction)persistLog.get(xid);
+				if (hasImage(xid)) {
+					RMHashMap afterImage = new RMHashMap();
+					RMHashMap image = readImage(xid);
+					for (String key : image.keySet()) {
+						RMItem item = readData(xid, key);
+						afterImage.put(key, item);
+					}
+					txn.setData(afterImage);
+				}
+
+				txn.addLog(log);
+				persistLog.put(xid,txn);
+				Trace.info("Transaction " + xid + " has been logged: " + log + "\nData:\n" + txn.data);
+			}
+		}
+		persistLogFile();
+	}
+	
+	private String readLog(int xid){
+		Transaction txn = (Transaction)persistLog.get(xid);
+		return txn.latestLog();
+	}
+
+	private void deleteLog(int xid) {
+		synchronized (persistLog) {
+			persistLog.remove(xid);
+		}
+	}
+
+	private void restartProtocal() {
+		// Keep in mind: DB is already restored!
+
+		// Load the Log
+		try {
+			FileInputStream fileIn = new FileInputStream(logFile);
+			if (fileIn.available() > 0)
+			{
+				ObjectInputStream in = new ObjectInputStream(fileIn);
+				persistLog = (HashMap<Integer, Transaction>) in.readObject();
+				in.close();
+				fileIn.close();
+				Trace.info("Loaded log Files");
+			}
+			for (int key : persistLog.keySet()) {
+				System.out.println("TID=" + key + ": " + persistLog.get(key));
+			}			
+		} 
+		catch (IOException i) 
+		{
+			i.printStackTrace();
+		} 
+		catch (ClassNotFoundException c) 
+		{
+			System.out.println("Class not found");
+			c.printStackTrace();
+		}
+
+		// Operate accordingly for each log
+		try {
+			if (persistLog.size()>0){
+				for ( Integer key : persistLog.keySet() ) {
+					Transaction txn = persistLog.get(key);
+					String logMsg = txn.latestLog();
+					Trace.info("Log Message [tid=" + txn.xid + "]: " + logMsg);
+
+					startedTransactions.add(txn.xid);
+					recoverTxnData(txn);
+
+					if (logMsg.equals("Empty")){
+						abortNoPersist(txn.xid);
+					}
+					else if (logMsg.equals("yes")){
+						// Wait...
+					}
+					else if (logMsg.equals("abort")){
+						abortNoPersist(txn.xid);
+					}
+					else if (logMsg.equals("commit")){
+						commitNoPersist(txn.xid);
+					}
+				}
+			}
+			
+			File f = new File(m_name+"/tmp/"+"crash.txt");
+			if (f.exists()) {
+				Trace.info("Recovery crash");
+				System.exit(1);
+			}
+		}
+		catch (Exception e) {
+			e.printStackTrace();
+		}
+		//now persist the change to Log files after all recovery is done
+		persistLogFile();
+	}
+
+	private void recoverTxnData(Transaction txn) throws TransactionAbortedException, InvalidTransactionException {
+		RMHashMap data = txn.data;
+		if (data == null) return;
+		for (String key : data.keySet()) {
+			RMItem item = data.get(key);
+			writeData(txn.xid, key, item);
+		}
+	}
+
+	private void writeImage(int xid, String key, RMItem value)
+	{
+		synchronized(beforeImageLog) {
+			RMHashMap hm = beforeImageLog.get(xid);
+			if (value == null) {
+				hm.put(key, value);
+			} else {
+				hm.put(key, (RMItem)value.clone());
+			}
+			beforeImageLog.put(xid, hm);
+		}
+	}
+
+	private RMHashMap readImage(int xid)
+	{
+		synchronized(beforeImageLog) {
+			return beforeImageLog.get(xid);
+		}
+	}
+
+	private boolean hasImage(int xid)
+	{
+		synchronized(beforeImageLog) {
+			return beforeImageLog.containsKey(xid);
+		}
+	}
+
+	private void removeImage(int xid)
+	{
+		synchronized(beforeImageLog) {
+			beforeImageLog.remove(xid);
+		}
+	}
+	
+	public void addImage(int xid)
+	{
+		synchronized(beforeImageLog) {
+			beforeImageLog.put(xid, new RMHashMap());
+		}
+	}
+
+	private String getInProgressFilename() {
+		if (dbCommittedFile.equals(dbAFile)) {
+			return dbBFile;
+		} else {
+			return dbAFile;
+		}
+	}
+
+	public int start() throws RemoteException
+	{
+		return 512;
+	}
+
+	private void startTx(int xid) throws TransactionAbortedException, InvalidTransactionException
+	{
+		addImage(xid);
+		// Start Tx timer and beforeImage
+		startedTransactions.add(xid);
+		startTimer(xid);
+
+		//add a new transaction Log
+		writeLog(xid, "");
+	}
+
+	public boolean commit(int transactionId) throws RemoteException, TransactionAbortedException, InvalidTransactionException
+	{
+		// Delete transaction from log
+		Trace.info("RM::commit(" + transactionId + ") called");
+
+		if (!persistLog.containsKey(transactionId)) return false;
+
+		if (hasImage(transactionId)) {
+			writeLog(transactionId, "commit");
+
+			if (CRASHMODE == 4){
+				System.exit(1);
+			}
+
+			// Read last comitted copy of db
+			StoreableRM committedData = readDB();
+
+			// And merge with this Txn's changes
+			RMHashMap image = persistLog.get(transactionId).data;
+			for (String key : image.keySet()) {
+				committedData.addData(key, image.get(key));
+			}
+
+			// Write dbFile in-progress
+			persistDB(committedData);
+
+			// Update master record to point to the current committed version
+			updateMasterRecord(transactionId);
+
+			removeImage(transactionId);
+		}
+
+		killTimer(transactionId);
+		removeTimer(transactionId);
+		deleteLog(transactionId);
+		persistLogFile();
+		return lockManager.UnlockAll(transactionId);
+	}
+
+	public boolean commitNoPersist(int transactionId) throws RemoteException, TransactionAbortedException, InvalidTransactionException
+	{
+		// Delete transaction from log
+		Trace.info("RM::commit(" + transactionId + ") called");
+
+		if (!persistLog.containsKey(transactionId)) return false;
+
+		if (hasImage(transactionId)) {
+			writeLog(transactionId, "commit");
+
+			if (CRASHMODE == 4){
+				System.exit(1);
+			}
+
+			// Read last comitted copy of db
+			StoreableRM committedData = readDB();
+
+			// And merge with this Txn's changes
+			RMHashMap image = persistLog.get(transactionId).data;
+			for (String key : image.keySet()) {
+				committedData.addData(key, image.get(key));
+			}
+
+			// Write dbFile in-progress
+			persistDB(committedData);
+
+			// Update master record to point to the current committed version
+			updateMasterRecord(transactionId);
+
+			removeImage(transactionId);
+		}
+
+		killTimer(transactionId);
+		removeTimer(transactionId);
+		deleteLog(transactionId);
+		return lockManager.UnlockAll(transactionId);
+	}
+
+	public void abort(int transactionId) throws RemoteException, InvalidTransactionException
+	{
+		Trace.info("RM::abort(" + transactionId + ") called");
+
+		if (!persistLog.containsKey(transactionId)) return;
+		
+		try{
+			writeLog(transactionId, "abort");
+		}
+		catch (TransactionAbortedException e){		}
+
+		if (CRASHMODE == 4){
+			System.exit(1);
+		}
+
+		abortedTransactions.add(transactionId);
+
+		// Undo all ops.
+		if (hasImage(transactionId)) {
+			RMHashMap image = readImage(transactionId);
+			synchronized(m_data) {
+				for (String key : image.keySet()) {
+					m_data.put(key, image.get(key));
+				}
+			}
+			removeImage(transactionId);
+		}
+
+		// Delete transaction from log
+		killTimer(transactionId);
+		removeTimer(transactionId);
+		deleteLog(transactionId);
+		persistLogFile();
+		lockManager.UnlockAll(transactionId);
+	}
+
+	public void abortNoPersist(int transactionId) throws RemoteException, InvalidTransactionException
+	{
+		Trace.info("RM::abort(" + transactionId + ") called");
+
+		if (!persistLog.containsKey(transactionId)) return;
+		
+		try{
+			writeLog(transactionId, "abort");
+		}
+		catch (TransactionAbortedException e){		}
+
+		if (CRASHMODE == 4){
+			System.exit(1);
+		}
+
+		abortedTransactions.add(transactionId);
+
+		// Undo all ops.
+		if (hasImage(transactionId)) {
+			RMHashMap image = readImage(transactionId);
+			synchronized(m_data) {
+				for (String key : image.keySet()) {
+					m_data.put(key, image.get(key));
+				}
+			}
+			removeImage(transactionId);
+		}
+
+		// Delete transaction from log
+		killTimer(transactionId);
+		removeTimer(transactionId);
+		deleteLog(transactionId);
+		lockManager.UnlockAll(transactionId);
+	}
+
+	public boolean shutdown() throws RemoteException
+	{
+		Trace.info("RM::shutdown() called");
+		new Thread(new Runnable() {
+			@Override
+			public void run() {
+				try{
+					System.out.println("Shutdown in 2 seconds");
+					Thread.sleep(2000);
+					System.exit(0);
+				}
+				catch(InterruptedException e){
+					System.exit(0);
+				}
+			}
+		}).start();
+		return true;
+	}
+
+	private void beforeFilter(int xid, String key, TransactionLockObject.LockType lock) throws TransactionAbortedException, InvalidTransactionException {
+		if (!persistLog.containsKey(xid)) {
+			if (startedTransactions.contains(xid))  {
+				// If there's no image for this Tx but it was once started, it means that it was committed/aborted
+				// Do nothing
+				return;
+			} else {
+				// Else, new transaction.
+				startTx(xid);
+			}
+		} else {
+			resetTimer(xid);
+		}
+		try {
+			lockManager.Lock(xid, key, lock);
+		}
+		catch (DeadlockException e){
+			try {
+				abort(xid);
+			} catch (RemoteException r) {
+				r.printStackTrace();
+			}
+			throw new TransactionAbortedException();
+		}
 	}
 
 	// Reads a data item
-	protected RMItem readData(int xid, String key)
+	protected RMItem readData(int xid, String key) throws TransactionAbortedException, InvalidTransactionException
 	{
+		beforeFilter(xid, key, TransactionLockObject.LockType.LOCK_READ);
 		synchronized(m_data) {
 			RMItem item = m_data.get(key);
 			if (item != null) {
@@ -37,24 +684,36 @@ public class ResourceManager implements IResourceManager
 	}
 
 	// Writes a data item
-	protected void writeData(int xid, String key, RMItem value)
+	protected void writeData(int xid, String key, RMItem value) throws TransactionAbortedException, InvalidTransactionException
 	{
+		beforeFilter(xid, key, TransactionLockObject.LockType.LOCK_WRITE);
 		synchronized(m_data) {
+			if (hasImage(xid)) {
+				if (!readImage(xid).containsKey(key)) {
+					RMItem item = readData(xid, key);
+					writeImage(xid, key, item);
+				}
+			}
 			m_data.put(key, value);
 		}
 	}
 
 	// Remove the item out of storage
-	protected void removeData(int xid, String key)
-	{
+	protected void removeData(int xid, String key) throws TransactionAbortedException, InvalidTransactionException
+	{	
+		beforeFilter(xid, key, TransactionLockObject.LockType.LOCK_WRITE);
 		synchronized(m_data) {
+			RMItem item = readData(xid, key);
+			System.out.println("Write log");
+			writeImage(xid, key, item);
 			m_data.remove(key);
 		}
 	}
 
 	// Deletes the encar item
-	protected boolean deleteItem(int xid, String key)
+	protected boolean deleteItem(int xid, String key) throws TransactionAbortedException, InvalidTransactionException
 	{
+
 		Trace.info("RM::deleteItem(" + xid + ", " + key + ") called");
 		ReservableItem curObj = (ReservableItem)readData(xid, key);
 		// Check if there is such an item in the storage
@@ -80,7 +739,7 @@ public class ResourceManager implements IResourceManager
 	}
 
 	// Query the number of available seats/rooms/cars
-	protected int queryNum(int xid, String key)
+	protected int queryNum(int xid, String key) throws TransactionAbortedException, InvalidTransactionException
 	{
 		Trace.info("RM::queryNum(" + xid + ", " + key + ") called");
 		ReservableItem curObj = (ReservableItem)readData(xid, key);
@@ -94,7 +753,7 @@ public class ResourceManager implements IResourceManager
 	}
 
 	// Query the price of an item
-	protected int queryPrice(int xid, String key)
+	protected int queryPrice(int xid, String key) throws TransactionAbortedException, InvalidTransactionException
 	{
 		Trace.info("RM::queryPrice(" + xid + ", " + key + ") called");
 		ReservableItem curObj = (ReservableItem)readData(xid, key);
@@ -108,7 +767,7 @@ public class ResourceManager implements IResourceManager
 	}
 
 	// Reserve an item
-	protected boolean reserveItem(int xid, int customerID, String key, String location)
+	protected boolean reserveItem(int xid, int customerID, String key, String location) throws TransactionAbortedException, InvalidTransactionException
 	{
 		Trace.info("RM::reserveItem(" + xid + ", customer=" + customerID + ", " + key + ", " + location + ") called" );
 		// Read customer object if it exists (and read lock it)
@@ -133,6 +792,9 @@ public class ResourceManager implements IResourceManager
 		}
 		else
 		{
+			writeImage(xid, key, item);
+			writeImage(xid, customer.getKey(), customer);
+
 			customer.reserve(key, location, item.getPrice());
 			writeData(xid, customer.getKey(), customer);
 
@@ -146,9 +808,72 @@ public class ResourceManager implements IResourceManager
 		}
 	}
 
+	// Reserve an item
+	protected boolean unreserveItem(int xid, int customerID, String key, String location) throws TransactionAbortedException, InvalidTransactionException
+	{
+		Trace.info("RM::unreserveItem(" + xid + ", customer=" + customerID + ", " + key + ", " + location + ") called" );
+		// Read customer object if it exists (and read lock it)
+		Customer customer = (Customer)readData(xid, Customer.getKey(customerID));
+		if (customer == null)
+		{
+			Trace.warn("RM::unreserveItem(" + xid + ", " + customerID + ", " + key + ", " + location + ")  failed--customer doesn't exist");
+			return false;
+		}
+
+		// Check if the item is available
+		ReservableItem item = (ReservableItem)readData(xid, key);
+		if (item == null)
+		{
+			Trace.warn("RM::unreserveItem(" + xid + ", " + customerID + ", " + key + ", " + location + ") failed--item doesn't exist");
+			return false;
+		}
+		else
+		{
+			customer.unreserve(key, location);
+			writeData(xid, customer.getKey(), customer);
+
+			// Increase the number of available items in the storage
+			item.setCount(item.getCount() + 1);
+			item.setReserved(item.getReserved() - 1);
+			writeData(xid, item.getKey(), item);
+
+			Trace.info("RM::unreserveItem(" + xid + ", " + customerID + ", " + key + ", " + location + ") succeeded");
+			return true;
+		}
+	}
+
+	protected boolean trackTotalCars(String key, int number)
+	{
+		// if there is no existing entry, create one in the hashmap
+		if (LocationMapCar.get(key) == null)
+		{
+			LocationMapCar.put(key,number);
+		}
+		else
+		{
+			LocationMapCar.put(key,number);
+		}
+		return true;
+	}
+
+	protected boolean trackTotalRooms(String key, int number)
+	{
+		// if there is no existing entry, create one in the hashmap
+		if (LocationMapRoom.get(key) == null)
+		{
+			LocationMapRoom.put(key,number);
+		}
+		else
+		{
+			LocationMapRoom.put(key,number);
+		}
+		return true;
+	}
+
+
 	// Create a new flight, or add seats to existing flight
 	// NOTE: if flightPrice <= 0 and the flight already exists, it maintains its current price
-	public boolean addFlight(int xid, int flightNum, int flightSeats, int flightPrice) throws RemoteException
+	public boolean addFlight(int xid, int flightNum, int flightSeats, int flightPrice) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
 		Trace.info("RM::addFlight(" + xid + ", " + flightNum + ", " + flightSeats + ", $" + flightPrice + ") called");
 		Flight curObj = (Flight)readData(xid, Flight.getKey(flightNum));
@@ -175,7 +900,7 @@ public class ResourceManager implements IResourceManager
 
 	// Create a new car location or add cars to an existing location
 	// NOTE: if price <= 0 and the location already exists, it maintains its current price
-	public boolean addCars(int xid, String location, int count, int price) throws RemoteException
+	public boolean addCars(int xid, String location, int count, int price) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
 		Trace.info("RM::addCars(" + xid + ", " + location + ", " + count + ", $" + price + ") called");
 		Car curObj = (Car)readData(xid, Car.getKey(location));
@@ -184,6 +909,7 @@ public class ResourceManager implements IResourceManager
 			// Car location doesn't exist yet, add it
 			Car newObj = new Car(location, count, price);
 			writeData(xid, newObj.getKey(), newObj);
+			trackTotalCars(location, count);
 			Trace.info("RM::addCars(" + xid + ") created new location " + location + ", count=" + count + ", price=$" + price);
 		}
 		else
@@ -195,6 +921,7 @@ public class ResourceManager implements IResourceManager
 				curObj.setPrice(price);
 			}
 			writeData(xid, curObj.getKey(), curObj);
+			trackTotalCars(location, count);
 			Trace.info("RM::addCars(" + xid + ") modified existing location " + location + ", count=" + curObj.getCount() + ", price=$" + price);
 		}
 		return true;
@@ -202,7 +929,7 @@ public class ResourceManager implements IResourceManager
 
 	// Create a new room location or add rooms to an existing location
 	// NOTE: if price <= 0 and the room location already exists, it maintains its current price
-	public boolean addRooms(int xid, String location, int count, int price) throws RemoteException
+	public boolean addRooms(int xid, String location, int count, int price) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
 		Trace.info("RM::addRooms(" + xid + ", " + location + ", " + count + ", $" + price + ") called");
 		Room curObj = (Room)readData(xid, Room.getKey(location));
@@ -211,6 +938,7 @@ public class ResourceManager implements IResourceManager
 			// Room location doesn't exist yet, add it
 			Room newObj = new Room(location, count, price);
 			writeData(xid, newObj.getKey(), newObj);
+			trackTotalRooms(location,count);
 			Trace.info("RM::addRooms(" + xid + ") created new room location " + location + ", count=" + count + ", price=$" + price);
 		} else {
 			// Add count to existing object and update price if greater than zero
@@ -220,76 +948,69 @@ public class ResourceManager implements IResourceManager
 				curObj.setPrice(price);
 			}
 			writeData(xid, curObj.getKey(), curObj);
+			trackTotalRooms(location,count);
 			Trace.info("RM::addRooms(" + xid + ") modified existing location " + location + ", count=" + curObj.getCount() + ", price=$" + price);
 		}
 		return true;
 	}
 
 	// Deletes flight
-	public boolean deleteFlight(int xid, int flightNum) throws RemoteException
+	public boolean deleteFlight(int xid, int flightNum) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
 		return deleteItem(xid, Flight.getKey(flightNum));
 	}
 
 	// Delete cars at a location
-	public boolean deleteCars(int xid, String location) throws RemoteException
+	public boolean deleteCars(int xid, String location) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
 		return deleteItem(xid, Car.getKey(location));
 	}
 
 	// Delete rooms at a location
-	public boolean deleteRooms(int xid, String location) throws RemoteException
+	public boolean deleteRooms(int xid, String location) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
 		return deleteItem(xid, Room.getKey(location));
 	}
 
 	// Returns the number of empty seats in this flight
-	public int queryFlight(int xid, int flightNum) throws RemoteException
+	public int queryFlight(int xid, int flightNum) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
 		return queryNum(xid, Flight.getKey(flightNum));
 	}
 
 	// Returns the number of cars available at a location
-	public int queryCars(int xid, String location) throws RemoteException
+	public int queryCars(int xid, String location) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
 		return queryNum(xid, Car.getKey(location));
 	}
 
 	// Returns the amount of rooms available at a location
-	public int queryRooms(int xid, String location) throws RemoteException
+	public int queryRooms(int xid, String location) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
 		return queryNum(xid, Room.getKey(location));
 	}
 
 	// Returns price of a seat in this flight
-	public int queryFlightPrice(int xid, int flightNum) throws RemoteException
+	public int queryFlightPrice(int xid, int flightNum) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
 		return queryPrice(xid, Flight.getKey(flightNum));
 	}
 
 	// Returns price of cars at this location
-	public int queryCarsPrice(int xid, String location) throws RemoteException
+	public int queryCarsPrice(int xid, String location) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
 		return queryPrice(xid, Car.getKey(location));
 	}
 
 	// Returns room price at this location
-	public int queryRoomsPrice(int xid, String location) throws RemoteException
+	public int queryRoomsPrice(int xid, String location) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
 		return queryPrice(xid, Room.getKey(location));
 	}
 
-	public String queryCustomerInfo(int xid, int customerID) throws RemoteException
+	public String queryCustomerInfo(int xid, int customerID) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
 		Trace.info("RM::queryCustomerInfo(" + xid + ", " + customerID + ") called");
-		if (isCustomers) {
-			String[] servers = {"Cars", "Flights", "Rooms"};
-			String bill = "Bill for customer " + customerID + "\n";;
-			for (String s : servers) {
-				bill += ((IResourceManager)s_resourceManagers.get(s)).queryCustomerInfo(xid, customerID);
-			}
-			return bill;
-		}
 		Customer customer = (Customer)readData(xid, Customer.getKey(customerID));
 		if (customer == null)
 		{
@@ -305,7 +1026,7 @@ public class ResourceManager implements IResourceManager
 		}
 	}
 
-	public int newCustomer(int xid) throws RemoteException
+	public int newCustomer(int xid) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
 
 		Trace.info("RM::newCustomer(" + xid + ") called");
@@ -313,30 +1034,15 @@ public class ResourceManager implements IResourceManager
 		int cid = Integer.parseInt(String.valueOf(xid) +
 		String.valueOf(Calendar.getInstance().get(Calendar.MILLISECOND)) +
 		String.valueOf(Math.round(Math.random() * 100 + 1)));
-		if (isCustomers) {
-			String[] servers = {"Cars", "Flights", "Rooms"};
-			for (String s : servers) {
-				((IResourceManager)s_resourceManagers.get(s)).newCustomer(xid, cid);
-			}
-			return cid;
-		}
 		Customer customer = new Customer(cid);
 		writeData(xid, customer.getKey(), customer);
 		Trace.info("RM::newCustomer(" + cid + ") returns ID=" + cid);
 		return cid;
 	}
 
-	public boolean newCustomer(int xid, int customerID) throws RemoteException
+	public boolean newCustomer(int xid, int customerID) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
 		Trace.info("RM::newCustomer(" + xid + ", " + customerID + ") called");
-		if (isCustomers) {
-			String[] servers = {"Cars", "Flights", "Rooms"};
-			boolean success = true;
-			for (String s : servers) {
-				success = success && ((IResourceManager)s_resourceManagers.get(s)).newCustomer(xid, customerID);
-			}
-			return success;
-		}
 		Customer customer = (Customer)readData(xid, Customer.getKey(customerID));
 		if (customer == null)
 		{
@@ -352,17 +1058,9 @@ public class ResourceManager implements IResourceManager
 		}
 	}
 
-	public boolean deleteCustomer(int xid, int customerID) throws RemoteException
+	public boolean deleteCustomer(int xid, int customerID) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
 		Trace.info("RM::deleteCustomer(" + xid + ", " + customerID + ") called");
-		if (isCustomers) {
-			String[] servers = {"Cars", "Flights", "Rooms"};
-			boolean success = true;
-			for (String s : servers) {
-				success = success && ((IResourceManager)s_resourceManagers.get(s)).deleteCustomer(xid, customerID);
-			}
-			return success;
-		}
 		Customer customer = (Customer)readData(xid, Customer.getKey(customerID));
 		if (customer == null)
 		{
@@ -392,41 +1090,141 @@ public class ResourceManager implements IResourceManager
 	}
 
 	// Adds flight reservation to this customer
-	public boolean reserveFlight(int xid, int customerID, int flightNum) throws RemoteException
+	public boolean reserveFlight(int xid, int customerID, int flightNum) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
-		if (isCustomers) {
-			System.out.println("entered");
-			return ((IResourceManager)s_resourceManagers.get("Flights")).reserveFlight(xid, customerID, flightNum);
-		}
+		Trace.info("RM::reserveFlight(" + xid + ", " + customerID + ", " + flightNum + ", " + ") called");
 		return reserveItem(xid, customerID, Flight.getKey(flightNum), String.valueOf(flightNum));
 	}
 
 	// Adds car reservation to this customer
-	public boolean reserveCar(int xid, int customerID, String location) throws RemoteException
+	public boolean reserveCar(int xid, int customerID, String location) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
-		if (isCustomers) {
-			return ((IResourceManager)s_resourceManagers.get("Cars")).reserveCar(xid, customerID, location);
-		}
+		Trace.info("RM::reserveCar(" + xid + ", " + customerID + ", " + location + ") called");
 		return reserveItem(xid, customerID, Car.getKey(location), location);
 	}
 
 	// Adds room reservation to this customer
-	public boolean reserveRoom(int xid, int customerID, String location) throws RemoteException
+	public boolean reserveRoom(int xid, int customerID, String location) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
-		if (isCustomers) {
-			return ((IResourceManager)s_resourceManagers.get("Rooms")).reserveRoom(xid, customerID, location);
-		}
+		Trace.info("RM::reserveRoom(" + xid + ", " + customerID + ", " + location + ") called");
 		return reserveItem(xid, customerID, Room.getKey(location), location);
 	}
 
+	// Adds flight reservation to this customer
+	public boolean unreserveFlight(int xid, int customerID, int flightNum) throws RemoteException,TransactionAbortedException, InvalidTransactionException
+	{
+		Trace.info("RM::unreserveFlight(" + xid + ", " + customerID + ", " + flightNum + ", " + ") called");
+		return unreserveItem(xid, customerID, Flight.getKey(flightNum), String.valueOf(flightNum));
+	}
+
+	// Adds car reservation to this customer
+	public boolean unreserveCar(int xid, int customerID, String location) throws RemoteException,TransactionAbortedException, InvalidTransactionException
+	{		
+		Trace.info("RM::unreserveCar(" + xid + ", " + customerID + ", " + location + ") called");
+		return unreserveItem(xid, customerID, Car.getKey(location), location);
+	}
+
+	// Adds room reservation to this customer
+	public boolean unreserveRoom(int xid, int customerID, String location) throws RemoteException,TransactionAbortedException, InvalidTransactionException
+	{
+		Trace.info("RM::unreserveRoom(" + xid + ", " + customerID + ", " + location + ") called");
+		return unreserveItem(xid, customerID, Room.getKey(location), location);
+	}
+
 	// Reserve bundle
-	public boolean bundle(int xid, int customerId, Vector<String> flightNumbers, String location, boolean car, boolean room) throws RemoteException
+	public boolean bundle(int xid, int customerId, Vector<String> flightNumbers, String location, boolean car, boolean room) throws RemoteException,TransactionAbortedException, InvalidTransactionException
 	{
 		return false;
+	}
+
+	public int queryLocationPopularity(int xid, String location) throws RemoteException,TransactionAbortedException, InvalidTransactionException
+	{
+		int availCars = queryNum(xid, Car.getKey(location));
+		int totalCars = 0;
+		if (LocationMapCar.get(location) != null)
+		{
+			totalCars = LocationMapCar.get(location);
+		}
+		int availRooms = queryNum(xid, Room.getKey(location));
+		int totalRooms = 0;
+		if (LocationMapRoom.get(location) != null)
+		{
+			totalRooms = LocationMapRoom.get(location);
+		}
+		int sum = totalCars - availCars + totalRooms - availRooms;
+		return sum;
 	}
 
 	public String getName() throws RemoteException
 	{
 		return m_name;
+	}
+
+	// keeping track of resource manager timeout 
+	public class TimeOutThread implements Runnable {
+		private int xid = 0;
+
+		public TimeOutThread(int xid) {
+			this.xid = xid;
+		}
+
+		@Override
+		public void run() {
+			try 
+			{
+				Thread.sleep(CONNECTION_TIMEOUT);
+			} 
+			catch (InterruptedException e) 
+			{
+				//exit if interrupted
+				Thread.currentThread().interrupt();
+				return;
+			}
+
+			try 
+			{
+				Trace.info("RM::Transaction" + Integer.toString(xid) + " connection timeout");
+				abort(this.xid);
+			} 
+			catch (InvalidTransactionException e) 
+			{
+				Trace.info("RM::Transaction" + Integer.toString(xid) + " is no longer valid.");
+			} 
+			catch (RemoteException e) 
+			{
+				Trace.info("RM::Transaction" + Integer.toString(xid) + " has remote exception");
+			}
+		}
+	}
+	
+	// start a timer for a new transaction
+	private void startTimer(int xid) {
+		Thread now = new Thread(new TimeOutThread(xid));
+		now.start();
+		timeTable.put(xid, now);
+		Trace.info("timer has been reset for transaction " + xid);
+	}
+
+	// reset a Timer when new activity arrives 
+	private synchronized void resetTimer(int xid) throws InvalidTransactionException, TransactionAbortedException {
+		// do nothing if it is not in the time table
+		if (timeTable.get(xid) != null) 
+		{
+			killTimer(xid);
+			startTimer(xid);
+		} 
+	}
+
+	// eliminate outdated timer thread
+	public void killTimer(int id) {
+		Thread p = timeTable.get(id);
+		if (p != null) {
+			p.interrupt();
+		}
+	}
+
+	//remove a timer when transaction is either commited or aborted
+	private void removeTimer(int xid) {
+		timeTable.remove(xid);
 	}
 }

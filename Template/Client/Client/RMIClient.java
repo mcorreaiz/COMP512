@@ -45,7 +45,7 @@ public class RMIClient extends Client
 		try {
 			RMIClient client = new RMIClient();
 			client.connectServer();
-			client.start();
+			client._start();
 		} 
 		catch (Exception e) {    
 			System.err.println((char)27 + "[31;1mClient exception: " + (char)27 + "[0mUncaught exception");

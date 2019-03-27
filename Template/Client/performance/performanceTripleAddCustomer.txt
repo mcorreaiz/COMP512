@@ -1,0 +1,7 @@
+Number of Clients,Total Tx,Avg. Response Time
+1,500,6
+1,1000,5
+1,2000,6
+1,4000,6
+1,6000,5
+1,8000,6

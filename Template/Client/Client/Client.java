@@ -20,7 +20,7 @@ public abstract class Client
 
 	public abstract void connectServer();
 
-	public void start()
+	public void _start()
 	{
 		// Prepare for reading commands
 		System.out.println();
@@ -60,6 +60,12 @@ public abstract class Client
 			catch (ConnectException|UnmarshalException e) {
 				System.err.println((char)27 + "[31;1mCommand exception: " + (char)27 + "[0mConnection to server lost");
 			}
+			catch (TransactionAbortedException e) {
+				System.err.println((char)27 + "[31;1mCommand exception: " + (char)27 + "[0mTransaction aborted");
+			}
+			catch (InvalidTransactionException e) {
+				System.err.println((char)27 + "[31;1mCommand exception: " + (char)27 + "[0mInvaild transaction");
+			}
 			catch (Exception e) {
 				System.err.println((char)27 + "[31;1mCommand exception: " + (char)27 + "[0mUncaught exception");
 				e.printStackTrace();
@@ -67,7 +73,8 @@ public abstract class Client
 		}
 	}
 
-	public void execute(Command cmd, Vector<String> arguments) throws RemoteException, NumberFormatException
+	public void execute(Command cmd, Vector<String> arguments) throws RemoteException, NumberFormatException, 
+	TransactionAbortedException, InvalidTransactionException
 	{
 		switch (cmd)
 		{
@@ -81,6 +88,73 @@ public abstract class Client
 				} else {
 					System.err.println((char)27 + "[31;1mCommand exception: " + (char)27 + "[0mImproper use of help command. Location \"help\" or \"help,<CommandName>\"");
 				}
+				break;
+			}
+			case resetCrashes:
+			{
+				checkArgumentsCount(1, arguments.size());
+
+				System.out.println("Reset Crashes for all nodes");
+				m_resourceManager.resetCrashes();
+				break;
+			}
+			case crashMiddleware:
+			{
+				checkArgumentsCount(2, arguments.size());
+
+				System.out.println("Setting Crash Mode for Transaction Manager of Mode" + arguments.elementAt(1) + "]");
+				int CRASHMODE = toInt(arguments.elementAt(1));
+				m_resourceManager.crashMiddleware(CRASHMODE);
+				break;
+			}
+			case crashResourceManager:
+			{
+				checkArgumentsCount(3, arguments.size());
+
+				System.out.println("Setting Crash Mode for " + arguments.elementAt(2) + " of Mode" + arguments.elementAt(2) + "]");
+				int CRASHMODE = toInt(arguments.elementAt(2));
+				m_resourceManager.crashResourceManager(arguments.elementAt(1),CRASHMODE);
+				break;
+			}
+			case Start:
+			{
+				checkArgumentsCount(1, arguments.size());
+
+				System.out.println("Start a new transaction");
+				int xid = m_resourceManager.start();
+				System.out.println("Set xid to be " + xid);
+				//NEED TO STORE THIS XID SOMEWHERE
+				break;
+			}
+			case Commit:
+			{
+				checkArgumentsCount(2, arguments.size());
+				System.out.println("Committing transaction [xid=" + arguments.elementAt(1) + "]");
+				int xid = toInt(arguments.elementAt(1));
+				if (m_resourceManager.commit(xid))
+				{
+					System.out.println("Commit successful!");
+				}
+				else
+				{
+					System.out.println("Commit failed!");
+
+				}
+				break;
+			}
+			case Abort:
+			{
+				checkArgumentsCount(2, arguments.size());
+				System.out.println("Abort transaction [xid=" + arguments.elementAt(1) + "]");
+				int xid = toInt(arguments.elementAt(1));
+				m_resourceManager.abort(xid);
+				break;
+			}
+			case Shutdown:
+			{
+				checkArgumentsCount(1, arguments.size());
+				System.out.println("Gracefully shutdown all servers ");
+				m_resourceManager.shutdown();
 				break;
 			}
 			case AddFlight: {
@@ -391,8 +465,11 @@ public abstract class Client
 				{
 					System.out.println("-Flight Number: " + arguments.elementAt(3+i));
 				}
-				System.out.println("-Car Location: " + arguments.elementAt(arguments.size()-2));
-				System.out.println("-Room Location: " + arguments.elementAt(arguments.size()-1));
+
+				System.out.println("-Car Location: " + arguments.elementAt(arguments.size()-3));
+				System.out.println("-Reserve car ? " + arguments.elementAt(arguments.size()-2));
+				System.out.println("-Room Location: " + arguments.elementAt(arguments.size()-3));
+				System.out.println("-Reserve room ? " + arguments.elementAt(arguments.size()-1));
 
 				int id = toInt(arguments.elementAt(1));
 				int customerID = toInt(arguments.elementAt(2));
@@ -401,7 +478,7 @@ public abstract class Client
 				{
 					flightNumbers.addElement(arguments.elementAt(3+i));
 				}
-				String location = arguments.elementAt(arguments.size()-2);
+				String location = arguments.elementAt(arguments.size()-3);
 				boolean car = toBoolean(arguments.elementAt(arguments.size()-2));
 				boolean room = toBoolean(arguments.elementAt(arguments.size()-1));
 
@@ -449,6 +526,25 @@ public abstract class Client
 
 	public static boolean toBoolean(String string)// throws Exception
 	{
+		if (string.equalsIgnoreCase("true")) 
+		{
+			return true;
+		}
+
+		if (string.equalsIgnoreCase("false")) 
+		{
+			return false;
+		}
+
+		if (string.equalsIgnoreCase("yes")) 
+		{
+			return true;
+		}
+
+		if (string.equalsIgnoreCase("no")) 
+		{
+			return false;
+		}
 		return (new Boolean(string)).booleanValue();
 	}
 }

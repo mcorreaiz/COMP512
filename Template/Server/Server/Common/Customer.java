@@ -46,6 +46,29 @@ public class Customer extends RMItem
 		m_reservations.put(reservedItem.getKey(), reservedItem);
 	}
 
+	public void unreserve(String key, String location)
+	{
+		ReservedItem reservedItem = getReservedItem(key);
+		if (reservedItem == null)
+		{
+			// Customer doesn't already have a reservation for this resource, so create a new one now
+			System.out.println("Trying to unreserve something never reserved!");
+			return;
+		}
+		else
+		{
+			if (reservedItem.getCount() == 1) {
+				// This bundle was first reservation, so item should be deleted
+				m_reservations.remove(key);
+				return;
+			} else {
+				reservedItem.setCount(reservedItem.getCount() - 1);
+				// reservedItem.setPrice(oldPrice);
+			}
+		}
+		m_reservations.put(reservedItem.getKey(), reservedItem);
+	}
+
 	public ReservedItem getReservedItem(String key)
 	{
 		return (ReservedItem)m_reservations.get(key);

@@ -16,9 +16,15 @@ public class RMHashMap extends HashMap<String, RMItem>
 
 	public String toString()
 	{
+		if (size() == 0) {
+			return "Empty RMHashMap";
+		}
 		String s = "--- BEGIN RMHashMap ---\n";
 		for (String key : keySet())
 		{
+			if (get(key) == null) {
+				break;
+			}
 			String value = get(key).toString();
 			s = s + "[KEY='" + key + "']" + value + "\n";
 		}
